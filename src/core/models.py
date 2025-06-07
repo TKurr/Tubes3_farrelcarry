@@ -33,6 +33,7 @@ class CVDocument:
     cv_id: int  # corresponds to Application.detail_id
     raw_pdf_path: str
     text_for_pattern_matching: str
+    text_for_regex: str
     extracted_skills: List[str] = field(default_factory=list)
     extracted_job_history: List[Dict[str, str]] = field(default_factory=list)
     extracted_education: List[Dict[str, str]] = field(default_factory=list)
