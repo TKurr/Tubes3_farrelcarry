@@ -5,7 +5,6 @@ from datetime import date
 
 @dataclass
 class Applicant:
-    """Represents personal data from ApplicantProfile table."""
     applicant_id: int
     first_name: str
     last_name: str
@@ -20,7 +19,6 @@ class Applicant:
 
 @dataclass
 class Application:
-    """Represents application details from ApplicationDetail table."""
     detail_id: int
     applicant_id: int
     application_role: str
@@ -29,7 +27,6 @@ class Application:
 
 @dataclass
 class CVDocument:
-    """In-memory representation of a CV's processed text and metadata."""
     cv_id: int  # corresponds to Application.detail_id
     raw_pdf_path: str
     text_for_pattern_matching: str
@@ -40,7 +37,6 @@ class CVDocument:
     extracted_summary_overview: str = ""
 
     def apply_regex_extraction(self, extractor):
-        """Applies RegexExtractor to populate extracted attributes."""
         self.extracted_skills = extractor.extract_skills(self.text_for_pattern_matching)
         self.extracted_job_history = extractor.extract_job_history(self.text_for_pattern_matching)
         self.extracted_education = extractor.extract_education(self.text_for_pattern_matching)
@@ -49,7 +45,6 @@ class CVDocument:
 
 @dataclass
 class SearchResult:
-    """Encapsulates a single search result."""
     applicant_id: int
     detail_id: int
     applicant_name: str
@@ -73,7 +68,6 @@ class SearchResult:
 
 @dataclass
 class CVSummary:
-    """Encapsulates all information needed for the summary page."""
     applicant_name: str
     birthdate: date
     address: str
