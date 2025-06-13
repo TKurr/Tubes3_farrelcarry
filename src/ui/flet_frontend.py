@@ -1,17 +1,28 @@
+# src/ui/flet_frontend.py
+
+# A simple GUI frontend using the Flet library.
+# This version is redesigned with a modern UI/UX approach.
+
 import flet as ft
 import requests
 import time
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 import os
 import sys
+import math
+from functools import partial
 
 # --- Path Correction & API Client ---
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+PROJECT_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 sys.path.append(PROJECT_ROOT)
 from config import API_HOST, API_PORT
 
+
 class ApiClient:
     """Handles all communication with the backend API."""
+
     def __init__(self, base_url: str):
         self.base_url = base_url
 
@@ -24,10 +35,18 @@ class ApiClient:
             print(f"[ApiClient Error] Could not connect: {e}")
             return None
 
-    def search(self, keywords: str, algorithm: str, num_matches: int) -> Optional[Dict[str, Any]]:
-        payload = {"keywords": keywords, "search_algorithm": algorithm, "num_top_matches": num_matches}
+    def search(
+        self, keywords: str, algorithm: str, num_matches: int
+    ) -> Optional[Dict[str, Any]]:
+        payload = {
+            "keywords": keywords,
+            "search_algorithm": algorithm,
+            "num_top_matches": num_matches,
+        }
         try:
-            response = requests.post(f"{self.base_url}/search", json=payload, timeout=30)
+            response = requests.post(
+                f"{self.base_url}/search", json=payload, timeout=30
+            )
             response.raise_for_status()
             return response.json()
         except requests.exceptions.RequestException as e:
@@ -43,293 +62,476 @@ class ApiClient:
             print(f"[ApiClient Error] Summary request failed: {e}")
             return None
 
+
 # --- Flet GUI Application ---
+
+
 def main_flet_app(page: ft.Page):
-    page.title = "Applicant Tracking System"
-    page.vertical_alignment = ft.MainAxisAlignment.START
-    page.window_width = 600
-    page.window_height = 800
+    """The main function that builds and manages the Flet GUI."""
+    page.title = "CV Analyzer"
+    page.theme_mode = ft.ThemeMode.LIGHT
+    page.theme = ft.Theme(color_scheme_seed="blue_grey", font_family="Roboto")
+    page.window_width = 800
+    page.window_height = 900
+    page.window_min_width = 600
+    page.window_min_height = 800
+    page.padding = 0
+    
+    # --- UI Configuration Constant ---
+    # Change this value to adjust the number of columns in the results grid
+    GRID_COLUMNS = 3
 
     api_client = ApiClient(f"http://{API_HOST}:{API_PORT}")
 
-    # --- UI Components ---
-    status_text = ft.Text("Connecting to backend...", style=ft.TextThemeStyle.HEADLINE_SMALL)
-    status_progress = ft.ProgressBar(width=400, value=0)
-    
-    keywords_input = ft.TextField(label="Keywords", hint_text="e.g., Python, React, SQL")
-    algo_dropdown = ft.Dropdown(
-        label="Algorithm",
-        options=[
-            ft.dropdown.Option("KMP"),
-            ft.dropdown.Option("BM"),
-        ],
-        value="KMP"
-    )
-    top_n_input = ft.TextField(label="Top N Matches", value="5", width=150)
-    
-    search_button = ft.ElevatedButton(text="Search", icon=ft.Icons.SEARCH)
-    
-    results_view = ft.ListView(expand=1, spacing=10, auto_scroll=True)
-    summary_text = ft.Text(style=ft.TextThemeStyle.BODY_SMALL, selectable=True)
+    def show_loading_view(message: str):
+        """Displays a full-page loading indicator."""
+        return ft.View(
+            "/loading",
+            [
+                ft.Column(
+                    [
+                        ft.ProgressRing(width=30, height=30, stroke_width=3),
+                        ft.Text(message, size=16),
+                    ],
+                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                    alignment=ft.MainAxisAlignment.CENTER,
+                    expand=True,
+                )
+            ],
+            vertical_alignment=ft.MainAxisAlignment.CENTER,
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+        )
 
-    def build_summary_page(detail_id: int):
-        page.controls.clear()
-        page.update()
+    def build_summary_view(detail_id: int) -> ft.View:
+        """Builds the detailed CV summary page."""
 
         response = api_client.get_summary(detail_id)
-        print(detail_id)
-        print(response)
 
         if not response:
-            page.controls.append(ft.Text("Could not retrieve summary for that ID.", color="red"))
-            page.update()
-            return
-
-        def label_text(label, value):
-            return ft.Row([
-                ft.Text(f"{label}:", weight=ft.FontWeight.BOLD, width=120),
-                ft.Text(str(value) if value else "N/A", selectable=True, expand=True)
-            ])
-
-        # Header
-        header = ft.Text("CV Summary", style=ft.TextThemeStyle.HEADLINE_MEDIUM, weight=ft.FontWeight.BOLD)
-
-        # Identitas
-        identitas_card = ft.Card(
-            elevation=2,
-            content=ft.Container(
-                border_radius=10,
-                padding=15,
-                content=ft.Column([
-                    ft.Text(response.get("applicant_name", "N/A"), size=20, weight=ft.FontWeight.BOLD),
-                    ft.Text(f"Birthdate: {response.get('birthdate', 'N/A')}"),
-                    ft.Text(f"Address: {response.get('address', 'N/A')}"),
-                    ft.Text(f"Phone Number: {response.get('phone_number', 'N/A')}"),
-                ])
-            )
-        )
-
-        # Skills
-        skills_list = response.get("skills", [])
-        if isinstance(skills_list, list) and skills_list:
-            skill_chips = [
-                ft.Container(
-                    content=ft.Chip(label=ft.Text(str(skill))),
-                    padding=5
-                )
-                for skill in skills_list
-            ]
-            skills_section = ft.Column([
-                ft.Text("Skills:", weight=ft.FontWeight.BOLD),
-                ft.Row(
-                    controls=skill_chips,
-                    run_spacing=10,
-                    spacing=10
-                )
-            ])
-        else:
-            skills_section = ft.Text("Skills: N/A", weight=ft.FontWeight.BOLD)
-
-        skills_card = ft.Card(
-            content=ft.Container(
-                padding=10,
-                border_radius=10,
-                content=skills_section
-            )
-        )
-
-        # Job History
-        job_history_texts = []
-        for job in response.get("job_history", []):
-            dates = job.get("dates", "N/A")
-            title = job.get("title", "N/A")
-            job_history_texts.append(ft.Text(f"{dates} - {title}"))
-
-        job_history = ft.Card(
-            content=ft.Container(
-                border_radius=10,
-                padding=10,
-                content=ft.Column([
-                    ft.Text("Job History:", weight=ft.FontWeight.BOLD),
-                    *job_history_texts,
-                    ft.Text(response.get("overall_summary", "N/A"))
-                ])
-            )
-        )
-
-        # Education
-        education_data = response.get("education", [])
-        if education_data and isinstance(education_data, list) and isinstance(education_data[0], dict):
-            degree = education_data[0].get("degree", "N/A")
-            university = education_data[0].get("university", "N/A")
-        else:
-            degree = "N/A"
-            university = "N/A"
-
-        education_texts = []
-        for edu in response.get("education", []):
-            dates = job.get("degree", "N/A")
-            title = job.get("university", "N/A")
-            education_texts.append(ft.Text(f"{degree} - {university}"))
-
-        education = ft.Card(
-            content=ft.Container(
-                border_radius=10,
-                padding=10,
-                content=ft.Column([
-                    ft.Text("Education:", weight=ft.FontWeight.BOLD),
-                    *education_texts,
-                ])
-            )
-        )
-
-        back_button = ft.ElevatedButton("Back", on_click=lambda e: build_main_page())
-
-        page.controls.append(
-            ft.Column(
+            return ft.View(
+                f"/summary/{detail_id}",
                 [
-                    header,
-                    ft.Divider(),
-                    identitas_card,
-                    ft.Divider(),
-                    skills_card,
-                    ft.Divider(),
-                    job_history,
-                    ft.Divider(),
-                    education,
-                    ft.Divider(),
-                    back_button
+                    ft.AppBar(
+                        title=ft.Text("Error"), bgcolor=ft.Colors.ON_SURFACE_VARIANT
+                    ),
+                    ft.Text(
+                        "Could not retrieve summary for that ID.", color="red", size=18
+                    ),
                 ],
-                scroll=ft.ScrollMode.AUTO,
-                spacing=20,
-                alignment=ft.MainAxisAlignment.START,
+            )
+
+        def info_row(icon: str, label: str, value: Any):
+            return ft.Row(
+                [
+                    ft.Icon(name=icon, color=ft.Colors.BLUE_GREY_400, size=20),
+                    ft.Text(label, weight=ft.FontWeight.BOLD, size=14, width=120),
+                    ft.Text(
+                        str(value) if value else "N/A",
+                        selectable=True,
+                        size=14,
+                        expand=True,
+                    ),
+                ],
+                spacing=15,
+            )
+
+        personal_card = ft.Card(
+            ft.Container(
+                ft.Column(
+                    [
+                        info_row(
+                            ft.Icons.PERSON_OUTLINED,
+                            "Birthdate",
+                            response.get("birthdate"),
+                        ),
+                        info_row(
+                            ft.Icons.HOME_OUTLINED, "Address", response.get("address")
+                        ),
+                        info_row(
+                            ft.Icons.PHONE_OUTLINED,
+                            "Phone",
+                            response.get("phone_number"),
+                        ),
+                    ]
+                ),
+                padding=20,
+            )
+        )
+
+        skills_list = response.get("skills", [])
+        skill_chips = (
+            [ft.Chip(label=ft.Text(str(skill))) for skill in skills_list]
+            if skills_list
+            else [ft.Text("No skills listed.")]
+        )
+        skills_card = ft.Card(
+            ft.Container(
+                ft.Column(
+                    [
+                        ft.Text("Skills", style=ft.TextThemeStyle.TITLE_MEDIUM),
+                        ft.Row(controls=skill_chips, wrap=True),
+                    ]
+                ),
+                padding=20,
+            )
+        )
+
+        job_history_items = []
+        for job in response.get("job_history", []):
+            job_history_items.append(
+                ft.Column(
+                    [
+                        ft.Text(job.get("title", "N/A"), weight=ft.FontWeight.BOLD),
+                        ft.Text(
+                            f"({job.get('dates', 'N/A')})",
+                            italic=True,
+                            color=ft.Colors.BLUE_GREY_500,
+                        ),
+                    ],
+                    spacing=2,
+                )
+            )
+        if not job_history_items:
+            job_history_items.append(ft.Text("No job history listed."))
+
+        work_card = ft.Card(
+            ft.Container(
+                ft.Column(
+                    [
+                        ft.Text(
+                            "Work Experience", style=ft.TextThemeStyle.TITLE_MEDIUM
+                        ),
+                        *job_history_items,
+                        ft.Divider(height=10, color="transparent"),
+                        ft.Text(
+                            "Summary Overview",
+                            style=ft.TextThemeStyle.TITLE_SMALL,
+                            weight=ft.FontWeight.BOLD,
+                        ),
+                        ft.Text(
+                            response.get("overall_summary", "N/A"), selectable=True
+                        ),
+                    ],
+                    spacing=10,
+                ),
+                padding=20,
+            )
+        )
+
+        education_items = []
+        for edu in response.get("education", []):
+            education_items.append(
+                ft.Column(
+                    [
+                        ft.Text(edu.get("degree", "N/A"), weight=ft.FontWeight.BOLD),
+                        ft.Text(
+                            edu.get("university", "N/A"), color=ft.Colors.BLUE_GREY_500
+                        ),
+                    ],
+                    spacing=2,
+                )
+            )
+        if not education_items:
+            education_items.append(ft.Text("No education history listed."))
+
+        education_card = ft.Card(
+            ft.Container(
+                ft.Column(
+                    [
+                        ft.Text("Education", style=ft.TextThemeStyle.TITLE_MEDIUM),
+                        *education_items,
+                    ],
+                    spacing=10,
+                ),
+                padding=20,
+            )
+        )
+
+        return ft.View(
+            f"/summary/{detail_id}",
+            [
+                ft.AppBar(
+                    title=ft.Text(response.get("applicant_name", "CV Summary")),
+                    bgcolor=ft.Colors.ON_SURFACE_VARIANT,
+                ),
+                ft.Column(
+                    [personal_card, skills_card, work_card, education_card],
+                    spacing=15,
+                    scroll=ft.ScrollMode.ADAPTIVE,
+                    expand=True,
+                ),
+            ],
+            padding=20,
+            bgcolor=ft.Colors.BLUE_GREY_50,
+        )
+
+    def build_main_view() -> ft.View:
+        """Builds the main search page of the application."""
+
+        keywords_input = ft.TextField(
+            label="Keywords",
+            hint_text="e.g., Python, React, SQL",
+            border=ft.InputBorder.OUTLINE,
+            border_radius=8,
+            expand=True,
+        )
+        algo_dropdown = ft.Dropdown(
+            label="Algorithm",
+            options=[ft.dropdown.Option("KMP"), ft.dropdown.Option("BM")],
+            value="KMP",
+            border_radius=8,
+            width=120,
+        )
+        top_n_input = ft.TextField(label="Top N", value="5", width=90, border_radius=8)
+        search_button = ft.FilledButton(text="Search", icon=ft.Icons.SEARCH, height=50)
+        
+        # Using a Row with wrap=True for a responsive grid with auto-height cards
+        results_view = ft.Row(
+            wrap=True,
+            spacing=15,
+            run_spacing=15,
+            # The scroll will be handled by the parent Column
+        )
+
+        # Container for the results_view to make it scrollable
+        results_container = ft.Column(
+            [results_view], 
+            expand=True, 
+            scroll=ft.ScrollMode.ADAPTIVE
+        )
+
+        summary_text = ft.Text(italic=True, color=ft.Colors.BLUE_GREY_600)
+
+        def handle_search(e):
+            print("[GUI] Search button clicked.")
+            kw = keywords_input.value
+            algo = algo_dropdown.value
+            top_n = int(top_n_input.value)
+
+            if not kw:
+                page.snack_bar = ft.SnackBar(
+                    ft.Text("Keywords are required."), bgcolor=ft.Colors.ERROR
+                )
+                page.snack_bar.open = True
+                page.update()
+                return
+
+            search_button.disabled = True
+            results_view.controls.clear()
+            
+            loading_container = ft.Container(
+                content=ft.Column(
+                    [ft.ProgressRing(), ft.Text("Searching CVs...")],
+                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                    spacing=10,
+                ),
+                alignment=ft.alignment.center,
                 expand=True
             )
-        )
-        page.update()
-
-
-    def handle_search(e):
-        print("[GUI] Search button clicked.")
-        kw = keywords_input.value
-        algo = algo_dropdown.value
-        top_n = int(top_n_input.value)
-
-        if not kw:
-            results_view.controls.clear()
-            results_view.controls.append(ft.Text("Error: Keywords are required.", color="red"))
+            results_view.controls.append(loading_container)
+            summary_text.value = ""
             page.update()
-            return
 
-        search_button.disabled = True
-        results_view.controls.clear()
-        results_view.controls.append(ft.ProgressRing())
-        summary_text.value = "Searching..."
-        page.update()
+            response = api_client.search(kw, algo, top_n)
 
-        response = api_client.search(kw, algo, top_n)
-
-        results_view.controls.clear()
-        if response and response.get("search_results"):
-            summary_text.value = response.get("summary", "No performance summary.")
-            for result in response["search_results"]:
-                detail_id = result.get('detail_id', None)
+            results_view.controls.clear()
+            if response and response.get("search_results"):
+                summary_text.value = response.get("summary", "No performance summary.")
                 
-                summary_btn = ft.ElevatedButton(
-                    "Summary",
-                    on_click=lambda e, did=detail_id: build_summary_page(did)
-                )
-                card = ft.Card(
-                    content=ft.Container(
-                        padding=10,
-                        content=ft.Column([
-                            ft.Text(f"{result.get('applicant_name', 'N/A')} (Role: {result.get('application_role', 'N/A')})", style=ft.TextThemeStyle.TITLE_MEDIUM),
-                            ft.Text(f"Detail ID: {detail_id} | Total Matches: {result.get('total_matches', 'N/A')}"),
-                            ft.Text(f"Keywords: {result.get('matched_keywords', {})}"),
-                            summary_btn
-                        ])
+                num_results = len(response["search_results"])
+                effective_columns = min(GRID_COLUMNS, num_results)
+                effective_columns = max(1, effective_columns) 
+
+                page_padding = 40 
+                total_spacing = (effective_columns - 10) * results_view.spacing
+                
+                # --- BUG FIX ---
+                # Use math.floor and subtract 1 pixel as a safety margin to prevent wrapping issues.
+                card_width = math.floor((page.width - page_padding - total_spacing) / effective_columns) - 60
+
+
+                for result in response["search_results"]:
+                    detail_id = result.get("detail_id")
+                    
+                    matched_keywords = result.get('matched_keywords', {})
+                    keywords_column = ft.Column(spacing=2)
+                    if matched_keywords:
+                        for i, (key, value) in enumerate(matched_keywords.items()):
+                            keywords_column.controls.append(
+                                ft.Text(f"{i+1}. {key} ({value} matches)")
+                            )
+                    else:
+                        keywords_column.controls.append(ft.Text("None"))
+
+
+                    card = ft.Card(
+                        ft.Container(
+                            ft.Column(
+                                [
+                                    ft.Text(
+                                        f"{result.get('applicant_name', 'N/A')}",
+                                        style=ft.TextThemeStyle.TITLE_MEDIUM,
+                                        weight=ft.FontWeight.BOLD,
+                                    ),
+                                    ft.Text(
+                                        f"Role: {result.get('application_role', 'N/A')}",
+                                        color=ft.Colors.BLUE_GREY_700,
+                                    ),
+                                    ft.Divider(height=5, color="transparent"),
+                                    ft.Row(
+                                        [
+                                            ft.Icon(
+                                                ft.Icons.CHECK_CIRCLE_OUTLINED,
+                                                color=ft.Colors.GREEN_500,
+                                                size=16,
+                                            ),
+                                            ft.Text(
+                                                f"Total Matches: {result.get('total_matches', 0)}",
+                                                size=14,
+                                            ),
+                                            ft.Icon(ft.Icons.TAG, size=16),
+                                            ft.Text(
+                                                f"Match Type: {result.get('match_type', 'N/A')}",
+                                                size=14,
+                                            ),
+                                        ],
+                                        spacing=5,
+                                    ),
+                                    ft.Divider(height=10),
+                                    ft.Text("Keywords Matched:", weight=ft.FontWeight.BOLD),
+                                    keywords_column,
+                                    ft.Container(expand=True),
+                                    ft.Row(
+                                        [
+                                            ft.OutlinedButton(
+                                                "View CV",
+                                                icon=ft.Icons.PICTURE_AS_PDF_OUTLINED,
+                                                on_click=lambda e, p=result.get('cv_path'): print(f"View CV clicked for path: {p}")
+                                            ),
+                                            ft.FilledButton(
+                                                "View Summary",
+                                                icon=ft.Icons.VISIBILITY_OUTLINED,
+                                                on_click=partial(
+                                                    lambda _, did: page.go(
+                                                        f"/summary/{did}"
+                                                    ),
+                                                    did=detail_id,
+                                                ),
+                                            ),
+                                        ],
+                                        alignment=ft.MainAxisAlignment.END,
+                                    ),
+                                ],
+                                spacing=8
+                            ),
+                            padding=20,
+                            border_radius=10,
+                            width=card_width 
+                        )
+                    )
+                    results_view.controls.append(card)
+            else:
+                results_view.controls.append(
+                    ft.Column(
+                        [
+                            ft.Icon(
+                                ft.Icons.SEARCH_OFF,
+                                size=48,
+                                color=ft.Colors.BLUE_GREY_200,
+                            ),
+                            ft.Text(
+                                "No results found.",
+                                style=ft.TextThemeStyle.HEADLINE_SMALL,
+                                color=ft.Colors.BLUE_GREY_400,
+                            ),
+                        ],
+                        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                     )
                 )
-                results_view.controls.append(card)
-        else:
-            results_view.controls.append(ft.Text("No results found or an error occurred."))
-            summary_text.value = ""
 
-        search_button.disabled = False
-        page.update()
-
-    def handle_get_summary(e):
-        print("[GUI] Get Summary button clicked.")
-        try:
-            detail_id = int(summary_id_input.value)
-            response = api_client.get_summary(detail_id)
-            if response:
-                summary_info = "\n--- CV Summary ---\n" + "\n".join([f"{key}: {value}" for key, value in response.items()])
-                summary_text.value = summary_info
-            else:
-                summary_text.value = "Could not retrieve summary for that ID."
-        except (ValueError, TypeError):
-            summary_text.value = "Error: Please enter a valid numerical Detail ID."
-        page.update()
-
-
-    search_button.on_click = handle_search
-
-    # --- Initial Status Check ---
-    def check_backend_status():
-        while True:
-            status = api_client.get_status()
-            if status:
-                parsed = status.get("parsed_count", 0)
-                total = status.get("total_count", 1) 
-                
-                status_text.value = f"Backend Parsing: {parsed}/{total}"
-                status_progress.value = parsed / total if total > 0 else 0
-                
-                if parsed >= total:
-                    status_text.value = "CV Analyzer App"
-                    status_progress.visible = False
-                    keywords_input.disabled = False
-                    algo_dropdown.disabled = False
-                    top_n_input.disabled = False
-                    search_button.disabled = False
-                    page.update()
-                    break 
-            else:
-                status_text.value = "Backend is unavailable. Retrying..."
-
+            search_button.disabled = False
             page.update()
-            time.sleep(0.2)
-    
-    def build_main_page():
-        page.controls.clear()
-        page.add(
-            status_text,
-            status_progress,
-            ft.Divider(),
-            ft.Row(controls=[keywords_input, algo_dropdown, top_n_input, search_button]),
-            ft.Divider(),
-            ft.Text("Search Results", style=ft.TextThemeStyle.HEADLINE_SMALL),
-            results_view,
-            ft.Divider(),
-            summary_text,
+
+        search_button.on_click = handle_search
+
+        return ft.View(
+            "/",
+            [
+                ft.AppBar(
+                    title=ft.Text("CV Analyzer"), bgcolor=ft.Colors.ON_SURFACE_VARIANT
+                ),
+                ft.Column(
+                    [
+                        ft.Text(
+                            "Search for candidates",
+                            style=ft.TextThemeStyle.HEADLINE_MEDIUM,
+                        ),
+                        ft.Row(
+                            [keywords_input, algo_dropdown, top_n_input],
+                            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                        ),
+                        search_button,
+                        ft.Divider(height=20),
+                        ft.Row(
+                            [
+                                ft.Text(
+                                    "Search Results",
+                                    style=ft.TextThemeStyle.TITLE_LARGE,
+                                ),
+                                summary_text,
+                            ],
+                            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                        ),
+                        results_container, 
+                    ],
+                    spacing=15,
+                    expand=True,
+                ),
+            ],
+            padding=20,
+            bgcolor=ft.Colors.BLUE_GREY_50,
         )
+
+    # --- Router for multi-page navigation ---
+    def route_change(route):
+        page.views.clear()
+
+        if page.route == "/":
+            page.views.append(build_main_view())
+        elif page.route.startswith("/summary/"):
+            detail_id = int(page.route.split("/")[-1])
+            page.views.append(build_summary_view(detail_id))
+        else:  # Initial loading or unknown route
+            page.views.append(show_loading_view("Preparing Application..."))
+
         page.update()
-    
-    build_main_page()
 
-    # Disable control sampe pasing selsai
-    keywords_input.disabled = True
-    algo_dropdown.disabled = True
-    top_n_input.disabled = True
-    search_button.disabled = True
-    page.update()
+    def view_pop(view):
+        page.views.pop()
+        top_view = page.views[-1]
+        page.go(top_view.route)
 
-    # Cek status background di thread lain
+    page.on_route_change = route_change
+    page.on_view_pop = view_pop
+
+    # --- Initial application startup ---
+    def check_backend_status():
+        """Polls the backend and enables the UI when ready."""
+        while True:
+            if api_client.get_status():
+                print("[GUI] Backend is ready. Loading main view.")
+                page.go("/")
+                break
+            else:
+                print("[GUI] Waiting for backend...")
+            time.sleep(1)
+
+    page.go("/loading")  # Start on the loading screen
     page.run_thread(check_backend_status)
 
 
-def start_gui():
+def start_gui(use_web_browser: bool = False):
+    """Launches the Flet application."""
     print("[Main] Launching Flet GUI application...")
-    ft.app(target=main_flet_app)
-
+    view_mode = ft.WEB_BROWSER if use_web_browser else ft.FLET_APP
+    ft.app(target=main_flet_app, view=view_mode, assets_dir="assets")

@@ -4,6 +4,7 @@ from PIL import Image
 import re
 import json
 
+
 def extract_text_from_pdf(pdf_path):
     all_text = ""
     with pdfplumber.open(pdf_path) as pdf:
@@ -18,23 +19,35 @@ def extract_text_from_pdf(pdf_path):
                 all_text += ocr_text + "\n"
     return all_text
 
+
 def clean_text(text):
-    text = text.replace('•', '-').replace('–', '-')
-    text = re.sub(r'\n+', '\n', text)
+    text = text.replace("•", "-").replace("–", "-")
+    text = re.sub(r"\n+", "\n", text)
     return text.strip()
 
+
 def format_sectioned_text(text):
-    section_titles = ['Skills', 'Summary', 'Highlights', 'Accomplishments', 'Experience', 'Education']
-    lines = text.split('\n')
+    section_titles = [
+        "Skills",
+        "Summary",
+        "Highlights",
+        "Accomplishments",
+        "Experience",
+        "Education",
+    ]
+    lines = text.split("\n")
     output = {}
-    current_section = 'Header'
+    current_section = "Header"
     output[current_section] = []
 
     for line in lines:
         clean_line = line.strip()
         if not clean_line:
             continue
-        title_match = next((title for title in section_titles if title.lower() in clean_line.lower()), None)
+        title_match = next(
+            (title for title in section_titles if title.lower() in clean_line.lower()),
+            None,
+        )
         if title_match:
             current_section = title_match
             output[current_section] = []
@@ -49,10 +62,12 @@ def format_sectioned_text(text):
         result += "\n"
     return result.strip()
 
+
 def format_flat_text(text):
-    text = re.sub(r'[^\w\s]', '', text)
-    text = re.sub(r'\s+', ' ', text)
+    text = re.sub(r"[^\w\s]", "", text)
+    text = re.sub(r"\s+", " ", text)
     return text.lower().strip()
+
 
 def convert_pdf_to_json(pdf_path, json_output_path):
     raw_text = extract_text_from_pdf(pdf_path)
@@ -60,15 +75,13 @@ def convert_pdf_to_json(pdf_path, json_output_path):
     structured = format_sectioned_text(cleaned)
     flat = format_flat_text(cleaned)
 
-    result = {
-        "structured": structured,
-        "flattened": flat
-    }
+    result = {"structured": structured, "flattened": flat}
 
     with open(json_output_path, "w", encoding="utf-8") as f:
         json.dump(result, f, indent=2, ensure_ascii=False)
 
     print(f"JSON saved to: {json_output_path}")
+
 
 # Contoh pemanggilan
 convert_pdf_to_json("10554236.pdf", "cv_output.json")

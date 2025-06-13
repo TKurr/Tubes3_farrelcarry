@@ -27,6 +27,21 @@ class MockSearchService:
                 'applicant_id': 1, 'detail_id': 101, 'applicant_name': 'John Doe',
                 'application_role': 'Software Engineer', 'matched_keywords': {'Python': 2, 'Flask': 1},
                 'total_matches': 3, 'match_type': 'exact'
+            },
+            {
+                'applicant_id': 3, 'detail_id': 101, 'applicant_name': 'John Doe',
+                'application_role': 'Software Engineer', 'matched_keywords': {'Python': 2, 'Flask': 1},
+                'total_matches': 3, 'match_type': 'exact'
+            },
+            {
+                'applicant_id': 4, 'detail_id': 101, 'applicant_name': 'John Doe',
+                'application_role': 'Software Engineer', 'matched_keywords': {'Python': 2, 'Flask': 1},
+                'total_matches': 3, 'match_type': 'exact'
+            },
+            {
+                'applicant_id': 5, 'detail_id': 101, 'applicant_name': 'John Doe',
+                'application_role': 'Software Engineer', 'matched_keywords': {'Python': 2, 'Flask': 1},
+                'total_matches': 3, 'match_type': 'exact'
             }
         ]
         
