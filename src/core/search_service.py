@@ -11,19 +11,16 @@ from src.core.cv_data_store import CVDataStore
 from src.core.fuzzy_matching import find_similar_word
 from src.core.pattern_matching import PatternMatcherFactory
 
-# Placeholder imports for dependencies that will be built later.
-# from .database_manager import DatabaseManager
-
 
 class SearchService:
     """
     Orchestrates the search process using pre-processed data from the CVDataStore.
     """
 
-    def __init__(self, cv_data_store: CVDataStore):
-        print("[SearchService] Initialized with CVDataStore.")
+    def __init__(self, cv_data_store: CVDataStore, db_manager=None):
+        print("[SearchService] Initialized with CVDataStore and DatabaseManager.")
         self.cv_data_store = cv_data_store
-        # self.db_manager = DatabaseManager() # This will be added in the future
+        self.db_manager = db_manager
 
     def perform_search(
         self, keywords_str: str, algorithm_type: str, num_top_matches: int
@@ -119,21 +116,20 @@ class SearchService:
         )
         top_cvs = sorted_cvs[:num_top_matches]
 
-        # --- 4. BUILD FINAL RESPONSE ---
+        # --- 4. BUILD FINAL RESPONSE WITH REAL DATABASE DATA ---
         final_results = []
         for cv in top_cvs:
-            applicant_name = (
-                os.path.basename(cv["cv_path"])
-                .replace(".pdf", "")
-                .replace("_", " ")
-                .title()
+            # Get real applicant data from database
+            applicant_name, application_role, applicant_id = self._get_applicant_info(
+                cv["detail_id"]
             )
+
             final_results.append(
                 {
-                    "applicant_id": cv["detail_id"],
+                    "applicant_id": applicant_id,
                     "detail_id": cv["detail_id"],
                     "applicant_name": applicant_name,
-                    "application_role": "Role Placeholder",
+                    "application_role": application_role,
                     "matched_keywords": cv["matched_keywords"],
                     "total_matches": cv["total_matches"],
                     "match_type": cv["match_type"],
@@ -149,18 +145,92 @@ class SearchService:
             len(fuzzy_matches),
         )
 
+    def _get_applicant_info(self, detail_id: int) -> tuple:
+        """Helper method to get real applicant information from database."""
+        if not self.db_manager:
+            # Fallback to filename if no database
+            return "Unknown Applicant", "Unknown Role", detail_id
+
+        try:
+            # Get application details
+            applications = self.db_manager.get_all_applications()
+            application = next(
+                (app for app in applications if app.detail_id == detail_id), None
+            )
+
+            if not application:
+                return "Unknown Applicant", "Unknown Role", detail_id
+
+            # Get applicant details
+            applicant = self.db_manager.get_applicant_by_id(application.applicant_id)
+
+            if applicant:
+                full_name = f"{applicant.first_name} {applicant.last_name}".strip()
+                return full_name, application.application_role, applicant.applicant_id
+            else:
+                return (
+                    "Unknown Applicant",
+                    application.application_role,
+                    application.applicant_id,
+                )
+
+        except Exception as e:
+            print(
+                f"[SearchService] Error getting applicant info for detail_id {detail_id}: {e}"
+            )
+            # Fallback to filename
+            return "Unknown Applicant", "Unknown Role", detail_id
+
     def get_cv_summary(self, detail_id: int) -> Dict[str, Any]:
         """Retrieves and constructs a detailed summary for a given CV."""
         print(f"[SearchService] Fetching summary for detail_id: {detail_id}")
-        # This will be replaced by the RegexExtractor in the future
-        return {
-            "applicant_name": f"Applicant {detail_id}",
-            "birthdate": "N/A",
-            "address": "N/A",
-            "phone_number": "N/A",
-            "skills": ["Mock Skill"],
-            "job_history": [],
-            "education": [],
-            "overall_summary": "Summary not implemented yet. Requires RegexExtractor and DB call.",
-            "cv_path": f"data/unknown/cv_{detail_id}.pdf",
-        }
+
+        if not self.db_manager:
+            return {
+                "applicant_name": f"Applicant {detail_id}",
+                "birthdate": "N/A",
+                "address": "N/A",
+                "phone_number": "N/A",
+                "skills": ["Mock Skill"],
+                "job_history": [],
+                "education": [],
+                "overall_summary": "Summary not implemented yet. Requires RegexExtractor and DB call.",
+                "cv_path": f"data/unknown/cv_{detail_id}.pdf",
+            }
+
+        try:
+            # Get application details
+            applications = self.db_manager.get_all_applications()
+            application = next(
+                (app for app in applications if app.detail_id == detail_id), None
+            )
+
+            if not application:
+                return {"error": "Application not found"}
+
+            # Get applicant details
+            applicant = self.db_manager.get_applicant_by_id(application.applicant_id)
+
+            if not applicant:
+                return {"error": "Applicant not found"}
+
+            return {
+                "applicant_name": f"{applicant.first_name} {applicant.last_name}",
+                "birthdate": (
+                    str(applicant.date_of_birth) if applicant.date_of_birth else "N/A"
+                ),
+                "address": applicant.address or "N/A",
+                "phone_number": applicant.phone_number or "N/A",
+                "application_role": application.application_role,
+                "skills": ["Skills extraction not implemented yet"],
+                "job_history": [],
+                "education": [],
+                "overall_summary": "Summary extraction not implemented yet. Requires RegexExtractor.",
+                "cv_path": application.cv_path,
+            }
+
+        except Exception as e:
+            print(
+                f"[SearchService] Error getting CV summary for detail_id {detail_id}: {e}"
+            )
+            return {"error": f"Database error: {str(e)}"}

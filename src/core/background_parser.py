@@ -14,27 +14,51 @@ from src.core.pdf_processor import (
 )
 
 
-def _get_cvs_from_database() -> List[Dict[str, Any]]:
+def _get_cvs_from_database(db_manager) -> List[Dict[str, Any]]:
     """
-    MOCK FUNCTION: Simulates fetching application details from a database
-    by dynamically scanning the data directory for all available PDF files.
+    REAL FUNCTION: Fetches application details from the MySQL database.
     """
-    print("[BackgroundParser] MOCK: Dynamically scanning for CVs...")
-    mock_db_data = []
-    for i, pdf_path in enumerate(find_pdf_files()):
-        detail_id = 101 + i
-        mock_db_data.append({"detail_id": detail_id, "cv_path": pdf_path})
-    return mock_db_data
+    print("[BackgroundParser] Fetching CV applications from database...")
+
+    try:
+        # Get all applications from database using the passed database manager
+        applications = db_manager.get_all_applications()
+
+        # Convert to the format expected by the parser
+        cv_data = []
+        for app in applications:
+            cv_data.append(
+                {
+                    "detail_id": app.detail_id,
+                    "cv_path": app.cv_path,
+                    "applicant_id": app.applicant_id,
+                    "application_role": app.application_role,
+                }
+            )
+
+        print(f"[BackgroundParser] Found {len(cv_data)} applications in database")
+        return cv_data
+
+    except Exception as e:
+        print(f"[BackgroundParser] Database error: {e}")
+        print("[BackgroundParser] Falling back to file scanning...")
+
+        # Fallback to old method if database fails
+        mock_db_data = []
+        for i, pdf_path in enumerate(find_pdf_files()):
+            detail_id = 101 + i
+            mock_db_data.append({"detail_id": detail_id, "cv_path": pdf_path})
+        return mock_db_data
 
 
-def parsing_thread_worker(cv_data_store: CVDataStore):
+def parsing_thread_worker(cv_data_store: CVDataStore, db_manager):
     """
     This function is the target for the background thread.
     It finds, processes, and stores all CVs in the CVDataStore.
     """
     print("[BackgroundParser] Starting background PDF processing thread...")
 
-    applications = _get_cvs_from_database()
+    applications = _get_cvs_from_database(db_manager)
     total_cvs = len(applications)
     cv_data_store.update_status(0, total_cvs)
 
@@ -45,14 +69,28 @@ def parsing_thread_worker(cv_data_store: CVDataStore):
 
     for i, app_data in enumerate(applications):
         detail_id = app_data["detail_id"]
-        pdf_path = app_data["cv_path"]
+        cv_filename = app_data["cv_path"]  # This is now just the filename
 
-        print(
-            f"[BackgroundParser] Processing CV {i + 1}/{total_cvs}: {os.path.basename(pdf_path)}"
-        )
+        # Construct the full path
+        cv_full_path = os.path.join("data", cv_filename)
 
-        raw_text = extract_text_from_pdf(pdf_path)
-        flat_text = format_flat_text(raw_text)
+        print(f"[BackgroundParser] Processing CV {i + 1}/{total_cvs}: {cv_filename}")
 
-        cv_data_store.add_cv(detail_id, pdf_path, flat_text)
+        # Check if file exists
+        if not os.path.exists(cv_full_path):
+            print(f"[BackgroundParser] WARNING: File not found: {cv_full_path}")
+            cv_data_store.update_status(i + 1, total_cvs)
+            continue
+
+        try:
+            raw_text = extract_text_from_pdf(cv_full_path)
+            flat_text = format_flat_text(raw_text)
+
+            # Store with the full path for later use
+            cv_data_store.add_cv(detail_id, cv_full_path, flat_text)
+        except Exception as e:
+            print(f"[BackgroundParser] Error processing {cv_full_path}: {e}")
+
         cv_data_store.update_status(i + 1, total_cvs)
+
+    print("[BackgroundParser] Finished processing all CVs!")

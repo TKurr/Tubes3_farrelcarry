@@ -10,7 +10,7 @@ class DatabaseManager:
             cls._instance = super(DatabaseManager, cls).__new__(cls)
         return cls._instance
 
-    def __init__(self, host="localhost", user="root", password="", database="cvApplicationDatabase"):
+    def __init__(self, host="localhost", user="root", password="password123", database="cvApplicationDatabase"):
         if not hasattr(self, "conn"):  # Prevent re-initialization on multiple instantiations
             self.conn = mysql.connector.connect(
                 host=host,

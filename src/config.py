@@ -10,20 +10,20 @@ import os
 # Replace with your actual MySQL database credentials.
 # It's recommended to use environment variables for sensitive data in a production environment.
 DB_CONFIG = {
-    'host': os.environ.get('DB_HOST', 'localhost'),
-    'user': os.environ.get('DB_USER', 'root'),
-    'password': os.environ.get('DB_PASSWORD', 'your_password'),
-    'database': os.environ.get('DB_NAME', 'ats_database')
+    "host": os.environ.get("DB_HOST", "localhost"),
+    "user": os.environ.get("DB_USER", "root"),
+    "password": os.environ.get("DB_PASSWORD", "password123"),
+    "database": os.environ.get("DB_NAME", "cvApplicationDatabase"),
 }
 
 # --- API Server Configuration ---
-API_HOST = '127.0.0.1'
+API_HOST = "127.0.0.1"
 API_PORT = 5000
 
 # --- File Paths ---
 # Defines the root directory of the project to construct absolute paths.
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DATA_DIR = os.path.join(BASE_DIR, 'data')
+DATA_DIR = os.path.join(BASE_DIR, "data")
 
 # --- Search Configuration ---
 # Default number of top matches to return if not specified by the client.

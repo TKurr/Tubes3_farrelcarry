@@ -216,6 +216,25 @@ def build_main_view(
     )
     summary_text = ft.Text(italic=True, color=ft.Colors.BLUE_GREY_600)
 
+    def on_view_cv_click(e, detail_id):
+        """Handle View CV button click - open PDF via backend"""
+        pdf_url = f"http://127.0.0.1:5000/view_cv/{detail_id}"
+        print(f"[UI] Opening CV: {pdf_url}")
+        
+        # For WSL - use Windows browser
+        import subprocess
+        import os
+        
+        if "microsoft" in os.uname().release.lower():  # Detect WSL
+            try:
+                # Use Windows browser from WSL
+                subprocess.run(["cmd.exe", "/c", "start", pdf_url], check=True)
+            except:
+                print(f"[UI] Could not open browser. Please visit: {pdf_url}")
+        else:
+            # Normal Linux/Mac
+            page.launch_url(pdf_url)
+
     def _populate_results(response_data):
         """Helper function to build result cards from API response data."""
         results_view.controls.clear()
@@ -289,9 +308,9 @@ def build_main_view(
                                         ft.OutlinedButton(
                                             "View CV",
                                             icon=ft.Icons.PICTURE_AS_PDF_OUTLINED,
-                                            on_click=lambda e, p=result.get(
-                                                "cv_path"
-                                            ): print(f"View CV clicked for path: {p}"),
+                                            on_click=lambda e, did=detail_id: on_view_cv_click(
+                                                e, did
+                                            ),
                                         ),
                                         ft.FilledButton(
                                             "View Summary",
