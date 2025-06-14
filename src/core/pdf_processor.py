@@ -14,7 +14,6 @@ from PIL import Image
 
 from config import DATA_DIR
 
-# --- Original Functions from Teammate ---
 
 
 def extract_text_from_pdf(pdf_path: str) -> str:

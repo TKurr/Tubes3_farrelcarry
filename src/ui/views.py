@@ -192,6 +192,7 @@ def build_main_view(
 ) -> ft.View:
     """Builds the main search page of the application, using persistent state."""
 
+    # Controls are enabled by default, assuming parsing is complete.
     keywords_input = ft.TextField(
         label="Keywords",
         hint_text="e.g., Python, React, SQL",
@@ -231,7 +232,7 @@ def build_main_view(
                 math.floor(
                     (page.width - page_padding - total_spacing) / effective_columns
                 )
-                - 10
+                - 15
             )
 
             for result in response_data["search_results"]:
@@ -364,7 +365,7 @@ def build_main_view(
         page.update()
 
         response = api_client.search(kw, algo, top_n)
-        search_state["last_response"] = response  # Save the response to the state
+        search_state["last_response"] = response
 
         _populate_results(response)
         search_button.disabled = False
@@ -372,14 +373,15 @@ def build_main_view(
 
     search_button.on_click = handle_search
 
-    # If state already exists from a previous search, populate the view
     if search_state.get("last_response"):
         _populate_results(search_state["last_response"])
 
     return ft.View(
         "/",
         [
-            ft.AppBar(title=ft.Text("CV Analyzer"), bgcolor=ft.Colors.ON_SURFACE_VARIANT),
+            ft.AppBar(
+                title=ft.Text("CV Analyzer"), bgcolor=ft.Colors.ON_SURFACE_VARIANT
+            ),
             ft.Column(
                 [
                     ft.Text(

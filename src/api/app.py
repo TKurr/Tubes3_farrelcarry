@@ -1,47 +1,43 @@
 # api/app.py
 
 # This file defines the main backend API server using Flask.
-# It establishes the API endpoints that the frontend GUI will communicate with.
+# It now manages a background thread for pre-processing all PDFs on startup.
 
+import threading
 from flask import Flask, request, jsonify
-from multiprocessing import Value
 
-# --- Real Service Import ---
-# We now import the actual SearchService instead of using a mock class here.
+# --- Real Service and Data Store Imports ---
 from src.core.search_service import SearchService
-
-# In a real app, these would also be real classes.
-# from src.core.cv_data_store import CVDataStore
-# from src.core.background_parser import BackgroundParser
-
-
-# --- Placeholder for demonstration ---
-class MockCVDataStore:
-    """A mock representation of the CVDataStore."""
-
-    def get_parsing_status(self):
-        global parsed_count, total_count
-        return {"parsed_count": parsed_count.value, "total_count": total_count.value}
-
+from src.core.cv_data_store import CVDataStore
+from src.core.background_parser import parsing_thread_worker
 
 # --- Flask App Initialization ---
 app = Flask(__name__)
 
+# --- Singleton Data Store ---
+# This single instance will be shared across the application.
+cv_data_store = CVDataStore()
+
 # --- Service Instantiation ---
-# In a full-fledged application, you would manage the lifecycle of these
-# objects more formally, possibly using a dependency injection framework.
-# For now, we instantiate our service and its (mock) dependencies here.
+# The SearchService is given the shared data store instance.
+search_service = SearchService(cv_data_store=cv_data_store)
 
-# TODO: Replace mock dependencies with real ones as they are built.
-# cv_data_store = CVDataStore()
-# search_service = SearchService(cv_data_store=cv_data_store, ...)
-cv_data_store = MockCVDataStore()
-search_service = SearchService()  # The real service class
+# --- Background Parsing Initialization ---
+parser_thread = None
+parsing_started = False
 
 
-# Using multiprocessing.Value for simple thread-safe counters for the mock parser status
-parsed_count = Value("i", 0)
-total_count = Value("i", 150)  # Example total
+def ensure_parsing_started():
+    """Ensure background parsing is started (called on first request)."""
+    global parser_thread, parsing_started
+    if not parsing_started:
+        print("[API] Starting background parsing thread...")
+        parser_thread = threading.Thread(
+            target=parsing_thread_worker, args=(cv_data_store,), daemon=True
+        )
+        parser_thread.start()
+        parsing_started = True
+
 
 # --- API Endpoints ---
 
@@ -50,22 +46,29 @@ total_count = Value("i", 150)  # Example total
 def get_status():
     """
     Endpoint to check the status of the initial CV parsing process.
-    The frontend will poll this to show progress to the user.
+    Reads the status directly from the thread-safe CVDataStore.
     """
-    status = cv_data_store.get_parsing_status()
-    # Simulate progress for demonstration
-    if status["parsed_count"] < status["total_count"]:
-        parsed_count.value += 5
-
-    return jsonify(status)
+    ensure_parsing_started()  # Start parsing on first request
+    return jsonify(cv_data_store.get_status())
 
 
 @app.route("/search", methods=["POST"])
 def search_cvs():
     """
-    Endpoint to perform a search for keywords in the CVs.
-    Delegates all logic to the SearchService.
+    Endpoint to perform a search. It delegates all logic to the SearchService.
+    The guard clause is now robustly thread-safe.
     """
+    ensure_parsing_started()  # Start parsing on first request
+
+    # Check the thread-safe event to see if parsing is complete.
+    if not cv_data_store.parsing_complete_event.is_set():
+        return (
+            jsonify(
+                {"error": "Server is still processing CVs. Please try again shortly."}
+            ),
+            503,
+        )
+
     data = request.get_json()
     if not data:
         return jsonify({"error": "Invalid JSON"}), 400
@@ -77,33 +80,29 @@ def search_cvs():
     if not keywords:
         return jsonify({"error": "Keywords are required"}), 400
 
-    # Delegate the core logic to the real search service
-    results, exact_time, fuzzy_time, exact_cvs_searched, fuzzy_cvs_searched = (
+    results, exact_time, fuzzy_time, exact_cvs, fuzzy_cvs = (
         search_service.perform_search(keywords, algorithm, num_matches)
     )
 
     response = {
         "search_results": results,
         "execution_times": {"exact_match_s": exact_time, "fuzzy_match_s": fuzzy_time},
-        "exact_cvs_searched": exact_cvs_searched,
-        "fuzzy_cvs_searched": fuzzy_cvs_searched,
-        "summary": f"Exact Match: {exact_cvs_searched} CVs scanned in {exact_time*1000:.2f}ms. | Fuzzy Match: {fuzzy_cvs_searched} CVs scanned in {fuzzy_time*1000:.2f}ms.",
+        "exact_cvs_searched": exact_cvs,
+        "fuzzy_cvs_searched": fuzzy_cvs,
+        "summary": f"Exact Match: {exact_cvs} CVs scanned in {exact_time*1000:.2f}ms. | Fuzzy Match: {fuzzy_cvs} CVs scanned in {fuzzy_time*1000:.2f}ms.",
     }
     return jsonify(response)
 
 
 @app.route("/summary/<int:detail_id>", methods=["GET"])
 def get_summary(detail_id):
-    """
-    Endpoint to retrieve the detailed summary of a specific CV.
-    Delegates all logic to the SearchService.
-    """
+    """Endpoint to retrieve the detailed summary of a specific CV."""
+    ensure_parsing_started()  # Start parsing on first request
+
     if not detail_id:
         return jsonify({"error": "detail_id is required"}), 400
 
-    # Delegate the logic to the real search service
     summary_data = search_service.get_cv_summary(detail_id)
-
     if not summary_data:
         return jsonify({"error": "Summary not found for the given detail_id"}), 404
 
@@ -111,8 +110,7 @@ def get_summary(detail_id):
 
 
 if __name__ == "__main__":
-    # This block allows running the API server directly for testing.
     from config import API_HOST, API_PORT
 
     print(f"Starting API server at http://{API_HOST}:{API_PORT}")
-    app.run(host=API_HOST, port=API_PORT, debug=True)
+    app.run(host=API_HOST, port=API_PORT, debug=False)
