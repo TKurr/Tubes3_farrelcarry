@@ -37,7 +37,7 @@ class ApiClient:
         }
         try:
             response = requests.post(
-                f"{self.base_url}/search", json=payload, timeout=30
+                f"{self.base_url}/search", json=payload, timeout=300
             )
             response.raise_for_status()
             return response.json()
