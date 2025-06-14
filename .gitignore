@@ -27,6 +27,7 @@ dist/
 
 # Data Files
 data/
+data2/
 
 # Flask specific
 # Instance folder can contain sensitive configuration or a database file.
