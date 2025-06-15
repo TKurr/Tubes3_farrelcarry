@@ -148,5 +148,3 @@ The application provides real-time performance metrics for each algorithm:
 - Special thanks to course instructors and teaching assistants
 
 ---
-
-*This project demonstrates the practical application of string matching algorithms in real-world document processing scenarios, showcasing the importance of algorithm selection based on specific use case requirements.*
