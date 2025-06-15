@@ -1,28 +1,21 @@
-# api/app.py
-
-# This file defines the main backend API server using Flask.
-# It now manages a background thread for pre-processing all PDFs on startup.
-
 import threading
 import sys
 import os
 from flask import Flask, request, jsonify, send_file
 
-# --- Real Service and Data Store Imports ---
+
 from src.core.search_service import SearchService
 from src.core.cv_data_store import CVDataStore
 from src.core.background_parser import parsing_thread_worker
 
-# --- Database Import ---
+
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", "core"))
 from src.core.databaseManager import DatabaseManager
 from config import DB_CONFIG
 
-# --- Flask App Initialization ---
+
 app = Flask(__name__)
 
-# --- Singleton Instances ---
-# These single instances will be shared across the application.
 cv_data_store = CVDataStore()
 
 # Initialize DatabaseManager singleton
@@ -33,11 +26,10 @@ database_manager = DatabaseManager(
     database=DB_CONFIG["database"],
 )
 
-# --- Service Instantiation ---
-# The SearchService is given both data store and database manager
+
 search_service = SearchService(cv_data_store=cv_data_store, db_manager=database_manager)
 
-# --- Background Parsing Initialization ---
+
 parser_thread = None
 parsing_started = False
 
@@ -58,23 +50,14 @@ def ensure_parsing_started():
 
 # --- API Endpoints ---
 
-
 @app.route("/status", methods=["GET"])
 def get_status():
-    """
-    Endpoint to check the status of the initial CV parsing process.
-    Reads the status directly from the thread-safe CVDataStore.
-    """
     ensure_parsing_started()  # Start parsing on first request
     return jsonify(cv_data_store.get_status())
 
 
 @app.route("/search", methods=["POST"])
 def search_cvs():
-    """
-    Endpoint to perform a search. It delegates all logic to the SearchService.
-    The guard clause is now robustly thread-safe.
-    """
     ensure_parsing_started()  # Start parsing on first request
 
     # Check the thread-safe event to see if parsing is complete.
@@ -113,7 +96,6 @@ def search_cvs():
 
 @app.route("/summary/<int:detail_id>", methods=["GET"])
 def get_summary(detail_id):
-    """Endpoint to retrieve the detailed summary of a specific CV."""
     ensure_parsing_started()  # Start parsing on first request
 
     if not detail_id:
@@ -124,6 +106,47 @@ def get_summary(detail_id):
         return jsonify({"error": "Summary not found for the given detail_id"}), 404
 
     return jsonify(summary_data)
+
+
+@app.route("/search_multiple", methods=["POST"])
+def search_multiple_patterns():
+    ensure_parsing_started()
+
+    if not cv_data_store.parsing_complete_event.is_set():
+        return (
+            jsonify(
+                {"error": "Server is still processing CVs. Please try again shortly."}
+            ),
+            503,
+        )
+
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "Invalid JSON"}), 400
+
+    patterns = data.get("patterns", [])
+    algorithm = data.get("search_algorithm", "KMP")  # Get the algorithm
+    num_matches = data.get("num_top_matches", 10)
+
+    if not patterns or not isinstance(patterns, list):
+        return jsonify({"error": "Patterns list is required"}), 400
+
+    # Filter out empty patterns
+    valid_patterns = [p.strip() for p in patterns if p and p.strip()]
+    if not valid_patterns:
+        return jsonify({"error": "At least one valid pattern is required"}), 400
+
+    results, execution_time, cvs_searched = (
+        search_service.perform_multiple_pattern_search(valid_patterns, algorithm, num_matches)
+    )
+
+    response = {
+        "search_results": results,
+        "execution_time_s": execution_time,
+        "cvs_searched": cvs_searched,
+        "summary": f"Multiple Pattern Search: {cvs_searched} CVs scanned in {execution_time*1000:.2f}ms using {algorithm} algorithm.",
+    }
+    return jsonify(response)
 
 
 if __name__ == "__main__":
@@ -157,3 +180,4 @@ def view_cv(detail_id):
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+

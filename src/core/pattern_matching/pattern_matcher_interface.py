@@ -1,8 +1,3 @@
-# src/core/pattern_matching/pattern_matcher_interface.py
-
-# This file defines the abstract base class (interface) for all pattern
-# matching algorithms, ensuring they adhere to a common structure.
-
 from abc import ABC, abstractmethod
 
 

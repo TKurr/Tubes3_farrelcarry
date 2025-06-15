@@ -11,7 +11,7 @@ class DatabaseManager:
         return cls._instance
 
     def __init__(self, host="localhost", user="root", password="password123", database="cvApplicationDatabase"):
-        if not hasattr(self, "conn"):  # Prevent re-initialization on multiple instantiations
+        if not hasattr(self, "conn"):  
             self.conn = mysql.connector.connect(
                 host=host,
                 user=user,
@@ -44,4 +44,4 @@ class DatabaseManager:
         if self.conn.is_connected():
             self.cursor.close()
             self.conn.close()
-            DatabaseManager._instance = None  # Reset singleton when closed
+            DatabaseManager._instance = None 

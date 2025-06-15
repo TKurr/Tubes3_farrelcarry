@@ -234,3 +234,88 @@ class SearchService:
                 f"[SearchService] Error getting CV summary for detail_id {detail_id}: {e}"
             )
             return {"error": f"Database error: {str(e)}"}
+
+    def perform_multiple_pattern_search(self, patterns: list[str], algorithm: str, num_matches: int):
+        """
+        Performs multiple pattern search using the specified algorithm.
+        For AC (Aho-Corasick), uses true multiple pattern matching.
+        For KMP/BM, performs individual searches for each pattern.
+        """
+        from src.core.pattern_matching.pattern_matcher_factory import PatternMatcherFactory
+        import time
+        
+        start_time = time.time()
+        
+        # Get all CV data
+        all_cvs = self.cv_data_store.get_all_cvs()
+        results = []
+        
+        if algorithm.upper() == "AC":
+            # Use Aho-Corasick for true multiple pattern matching
+            matcher = PatternMatcherFactory.get_matcher("AC")
+            
+            for detail_id, cv_data in all_cvs.items():
+                searchable_text = cv_data["text"].lower()
+                
+                # Use Aho-Corasick for multiple pattern matching
+                pattern_counts = matcher.count_multiple_patterns(searchable_text, patterns)
+                
+                # Calculate total matches and create result if matches found
+                total_matches = sum(pattern_counts.values())
+                if total_matches > 0:
+                    matched_keywords = {k: v for k, v in pattern_counts.items() if v > 0}
+                    
+                    # Get real applicant data from database
+                    applicant_name, application_role, applicant_id = self._get_applicant_info(detail_id)
+                    
+                    result = {
+                        "applicant_id": applicant_id,
+                        "detail_id": detail_id,
+                        "applicant_name": applicant_name,
+                        "application_role": application_role,
+                        "total_matches": total_matches,
+                        "matched_keywords": matched_keywords,
+                        "match_type": "multiple_pattern_ac",
+                        "cv_path": cv_data["cv_path"]
+                    }
+                    results.append(result)
+        
+        else:
+            # Use KMP or BM for individual pattern searches
+            matcher = PatternMatcherFactory.get_matcher(algorithm)
+            
+            for detail_id, cv_data in all_cvs.items():
+                searchable_text = cv_data["text"].lower()
+                
+                # Search each pattern individually
+                matched_keywords = {}
+                total_matches = 0
+                
+                for pattern in patterns:
+                    count = matcher.count_occurrences(searchable_text, pattern.lower())
+                    if count > 0:
+                        matched_keywords[pattern] = count
+                        total_matches += count
+                
+                # Create result if any matches found
+                if total_matches > 0:
+                    # Get real applicant data from database
+                    applicant_name, application_role, applicant_id = self._get_applicant_info(detail_id)
+                    
+                    result = {
+                        "applicant_id": applicant_id,
+                        "detail_id": detail_id,
+                        "applicant_name": applicant_name,
+                        "application_role": application_role,
+                        "total_matches": total_matches,
+                        "matched_keywords": matched_keywords,
+                        "match_type": f"multiple_pattern_{algorithm.lower()}",
+                        "cv_path": cv_data["cv_path"]
+                    }
+                    results.append(result)
+        
+        # Sort by total matches and return top N
+        results.sort(key=lambda x: x["total_matches"], reverse=True)
+        execution_time = time.time() - start_time
+        
+        return results[:num_matches], execution_time, len(all_cvs)

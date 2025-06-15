@@ -1,8 +1,3 @@
-# src/core/background_parser.py
-
-# This module contains the worker function for the background parsing thread.
-# It populates the CVDataStore upon application startup.
-
 import os
 from typing import List, Dict, Any
 
@@ -15,16 +10,11 @@ from src.core.pdf_processor import (
 
 
 def _get_cvs_from_database(db_manager) -> List[Dict[str, Any]]:
-    """
-    REAL FUNCTION: Fetches application details from the MySQL database.
-    """
     print("[BackgroundParser] Fetching CV applications from database...")
 
     try:
-        # Get all applications from database using the passed database manager
         applications = db_manager.get_all_applications()
 
-        # Convert to the format expected by the parser
         cv_data = []
         for app in applications:
             cv_data.append(
@@ -43,7 +33,6 @@ def _get_cvs_from_database(db_manager) -> List[Dict[str, Any]]:
         print(f"[BackgroundParser] Database error: {e}")
         print("[BackgroundParser] Falling back to file scanning...")
 
-        # Fallback to old method if database fails
         mock_db_data = []
         for i, pdf_path in enumerate(find_pdf_files()):
             detail_id = 101 + i
@@ -52,10 +41,6 @@ def _get_cvs_from_database(db_manager) -> List[Dict[str, Any]]:
 
 
 def parsing_thread_worker(cv_data_store: CVDataStore, db_manager):
-    """
-    This function is the target for the background thread.
-    It finds, processes, and stores all CVs in the CVDataStore.
-    """
     print("[BackgroundParser] Starting background PDF processing thread...")
 
     applications = _get_cvs_from_database(db_manager)
@@ -69,7 +54,7 @@ def parsing_thread_worker(cv_data_store: CVDataStore, db_manager):
 
     for i, app_data in enumerate(applications):
         detail_id = app_data["detail_id"]
-        cv_filename = app_data["cv_path"]  # This is now just the filename
+        cv_filename = app_data["cv_path"] 
 
         # Construct the full path
         cv_full_path = os.path.join("data", cv_filename)

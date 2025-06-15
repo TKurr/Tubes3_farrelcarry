@@ -10,8 +10,7 @@ import json
 from typing import Iterator
 import pdfplumber
 import pytesseract
-from PIL import Image
-from config import DATA_DIR
+from PIL import Image   
 
 
 def extract_summary(text: str) -> str:
@@ -61,7 +60,7 @@ def extract_education(text: str) -> list[dict[str, str]]:
     block = sec.group(1).strip()
     entries: list[dict[str, str]] = []
 
-    # 2) Regex untuk tiap baris entry
+
     line_pattern = re.compile(
         r"^"
         r"(?P<degree>[^:]+?)\s*:\s*"              

@@ -54,3 +54,22 @@ class ApiClient:
         except requests.exceptions.RequestException as e:
             print(f"[ApiClient Error] Summary request failed: {e}")
             return None
+
+    def search_multiple_patterns(
+        self, patterns: list[str], algorithm: str, num_matches: int
+    ) -> Optional[Dict[str, Any]]:
+        """Sends a multiple pattern search request with specified algorithm."""
+        payload = {
+            "patterns": patterns,
+            "search_algorithm": algorithm,  # Use the selected algorithm
+            "num_top_matches": num_matches,
+        }
+        try:
+            response = requests.post(
+                f"{self.base_url}/search_multiple", json=payload, timeout=300
+            )
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            print(f"[ApiClient Error] Multiple pattern search failed: {e}")
+            return None
