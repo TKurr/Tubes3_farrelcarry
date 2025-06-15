@@ -97,13 +97,12 @@ def build_summary_view(page: ft.Page, api_client: ApiClient, detail_id: int) -> 
     job_history_items = [
         ft.Column(
             [
-                ft.Text(job.get('title', 'N/A'), weight=ft.FontWeight.BOLD),
-
+                ft.Text(job.get("title", {}).get("title", "N/A"), weight=ft.FontWeight.BOLD),
                 *[
                     ft.Text(f"- {desc}", size=14)
-                    for desc in job.get("descriptions", [])  
+                    for desc in job.get("title", {}).get("descriptions", [])
                     if desc.strip()
-                ]
+                ],
             ],
             spacing=4,
         )

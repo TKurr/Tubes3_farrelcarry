@@ -117,15 +117,12 @@ def extract_detailed_info(text: str) -> Dict[str, Any]:
         if not lines:
             continue
 
-        # Gabungkan kalimat bullet yang pecah
-        combined = " ".join(lines).strip()
-        sentences = re.split(r"\.\s+(?=[A-Z])", combined)
-        if not sentences:
-            continue
+        title = lines[0] if lines else "Untitled Role"
+        descriptions = lines[1:] if len(lines) > 1 else []
 
         experience.append({
-            "title": sentences[0].strip(),
-            "descriptions": [s.strip() for s in sentences[1:] if len(s.strip()) > 4]
+            "title": title,
+            "descriptions": descriptions
         })
 
     if not experience:
