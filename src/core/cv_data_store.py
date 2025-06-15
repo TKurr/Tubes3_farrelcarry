@@ -1,32 +1,50 @@
 # src/core/cv_data_store.py
 
+# This module defines the CVDataStore class, which is now made more robust
+# for multithreading using a threading.Event object.
+
 import threading
 
 
 class CVDataStore:
-    _instance = None
-
-    def __new__(cls, *args, **kwargs):
-        if cls._instance is None:
-            cls._instance = super(CVDataStore, cls).__new__(cls)
-        return cls._instance
+    """
+    A thread-safe, in-memory data store for CV information.
+    It uses a threading.Event to reliably signal when background parsing is complete.
+    """
 
     def __init__(self):
-        if not hasattr(self, "_initialized"):  # Prevent re-initialization
-            self.cvs = {}
-            self._parsing_status = {"progress": 0, "total": 0}
-            self._lock = threading.Lock()
-            self.parsing_complete_event = threading.Event()
-            self._initialized = True
+        # The main data dictionary.
+        self.cvs = {}
+
+        # A dictionary to track the progress of the initial background parsing.
+        self._parsing_status = {
+            "progress": 0,
+            "total": 0,
+        }
+
+        # A lock to protect the status dictionary during updates.
+        self._lock = threading.Lock()
+
+        # An Event is a much better tool for signaling completion between threads.
+        self.parsing_complete_event = threading.Event()
 
     def add_cv(
-        self, detail_id: int, cv_path: str, flat_text: str, structured_text: str
+        self,
+        detail_id: int,
+        cv_path: str,
+        flat_text: str,
+        structured_text: str,
+        db_info: dict,
     ):
-        """Adds a processed CV to the data store with both flat and structured text."""
+        """
+        Adds a processed CV to the data store, storing both text versions
+        and the pre-fetched database information.
+        """
         self.cvs[detail_id] = {
             "cv_path": cv_path,
-            "flat_text": flat_text,
-            "structured_text": structured_text,  # Store the structured text
+            "flat_text": flat_text,  # For fast searching
+            "structured_text": structured_text,  # For detailed summary extraction
+            "db_info": db_info,  # Cached DB data (name, role, etc.)
         }
 
     def get_all_cvs(self) -> dict:
@@ -35,43 +53,21 @@ class CVDataStore:
 
     def get_status(self) -> dict:
         """Returns a copy of the current parsing status in a thread-safe way."""
-        # print(f"[CVDataStore] get_status() called on instance: {id(self)}") # Optional debug
         with self._lock:
-            # print(f"[CVDataStore] get_status() INSIDE lock: _parsing_status = {self._parsing_status}") # Optional debug
-            progress = self._parsing_status["progress"]
-            total = self._parsing_status["total"]
-            is_done_event = self.parsing_complete_event.is_set()
+            status = self._parsing_status.copy()
 
-            if is_done_event and total > 0 and progress < total:
-                # If event is set, but progress isn't max, force it for consistency
-                # This can happen if the last update_status call was missed by a polling cycle
-                progress = total
-                # self._parsing_status["progress"] = total # No need to update here, just for return
-
-            status = {
-                "parsed_count": progress,
-                "total_count": total,
-                "progress": progress,
-                "total": total,
-                "is_done": is_done_event,
-            }
-        # print(f"[CVDataStore] get_status() returning: parsed={progress}, total={total}, is_done={is_done_event}") # Optional debug
+        status["is_done"] = self.parsing_complete_event.is_set()
         return status
 
     def update_status(self, progress: int, total: int):
         """Updates the parsing progress and sets the completion event when done."""
-        # print(f"[CVDataStore] update_status() called on instance: {id(self)}") # Optional debug
-        # print(f"[CVDataStore] update_status BEFORE lock: progress={progress}, total={total}") # Optional debug
         with self._lock:
-            # print(f"[CVDataStore] update_status INSIDE lock BEFORE update: stored_progress={self._parsing_status['progress']}, stored_total={self._parsing_status['total']}") # Optional debug
             self._parsing_status["progress"] = progress
             self._parsing_status["total"] = total
-            # print(f"[CVDataStore] update_status INSIDE lock AFTER update: stored_progress={self._parsing_status['progress']}, stored_total={self._parsing_status['total']}") # Optional debug
-            should_complete = progress >= total and total > 0
 
-        # print(f"[CVDataStore] update_status({progress}/{total}) - should_complete: {should_complete}") # Optional debug
-        if should_complete and not self.parsing_complete_event.is_set():
-            print(
-                f"[CVDataStore] Background parsing has completed ({progress}/{total}). Setting completion event."
-            )
-            self.parsing_complete_event.set()
+        if progress >= total and total > 0:
+            if not self.parsing_complete_event.is_set():
+                print(
+                    f"[CVDataStore] Background parsing has completed ({progress}/{total}). Setting completion event."
+                )
+                self.parsing_complete_event.set()
