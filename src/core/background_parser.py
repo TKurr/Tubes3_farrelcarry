@@ -6,14 +6,9 @@ import traceback  # For detailed error logging
 
 from src.core.cv_data_store import CVDataStore
 from src.core.pdf_processor import (
-    extract_text_from_pdf,  # Friend's PDF-to-string (pdfplumber+tesseract)
-    format_flat_text,  # For the searchable flat text
-    # format_resume,        # This was the cause of the ImportError, remove it
+    extract_text_from_pdf, 
+    format_flat_text,
 )
-
-# Assuming DatabaseManager and DB_CONFIG are correctly imported
-# from databaseManager import DatabaseManager
-# from config import DB_CONFIG
 
 
 def _get_cvs_from_database(db_manager) -> List[Dict[str, Any]]:
@@ -39,11 +34,6 @@ def _get_cvs_from_database(db_manager) -> List[Dict[str, Any]]:
         print(f"[BackgroundParser] Database error: {e}")
         print("[BackgroundParser] Falling back to file scanning (if implemented)...")
         mock_db_data = []
-        # from src.core.pdf_processor import find_pdf_files # If using fallback
-        # from config import DATA_DIR # If find_pdf_files needs it
-        # for i, pdf_path_fallback in enumerate(find_pdf_files(DATA_DIR)): # Pass DATA_DIR
-        #     detail_id = 10000 + i
-        #     mock_db_data.append({"detail_id": detail_id, "cv_path": os.path.basename(pdf_path_fallback)})
         return mock_db_data
 
 
@@ -86,14 +76,10 @@ def parsing_thread_worker(cv_data_store: CVDataStore, db_manager):
             continue
 
         try:
-            # 1. Use friend's PDF to string extractor to get raw_text
             raw_text = extract_text_from_pdf(cv_full_path_on_disk)
 
-            # 2. The 'structured_text' for summary extraction will be this raw_text,
-            #    as extract_detailed_info (via extract_hybrid_info) expects text with newlines.
             structured_text = raw_text
 
-            # 3. Generate flat text for searching from the raw_text.
             flat_text = format_flat_text(raw_text)
 
             db_info = {

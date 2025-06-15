@@ -51,6 +51,7 @@ def ensure_parsing_started():
 
 # --- API Endpoints ---
 
+
 @app.route("/status", methods=["GET"])
 def get_status():
     ensure_parsing_started()  # Start parsing on first request
@@ -126,26 +127,29 @@ def search_multiple_patterns():
         return jsonify({"error": "Invalid JSON"}), 400
 
     patterns = data.get("patterns", [])
-    algorithm = data.get("search_algorithm", "KMP")  # Get the algorithm
+    algorithm = data.get("search_algorithm", "KMP")
     num_matches = data.get("num_top_matches", 10)
 
     if not patterns or not isinstance(patterns, list):
         return jsonify({"error": "Patterns list is required"}), 400
 
-    # Filter out empty patterns
     valid_patterns = [p.strip() for p in patterns if p and p.strip()]
     if not valid_patterns:
         return jsonify({"error": "At least one valid pattern is required"}), 400
 
-    results, execution_time, cvs_searched = (
-        search_service.perform_multiple_pattern_search(valid_patterns, algorithm, num_matches)
+    # CORRECTED: Unpack 5 values
+    results, exact_time, fuzzy_time, total_cvs_processed, fuzzy_cvs_searched = (
+        search_service.perform_multiple_pattern_search(
+            valid_patterns, algorithm, num_matches
+        )
     )
 
     response = {
         "search_results": results,
-        "execution_time_s": execution_time,
-        "cvs_searched": cvs_searched,
-        "summary": f"Multiple Pattern Search: {cvs_searched} CVs scanned in {execution_time*1000:.2f}ms using {algorithm} algorithm.",
+        "execution_times": {"exact_match_s": exact_time, "fuzzy_match_s": fuzzy_time},
+        "exact_cvs_searched": total_cvs_processed,  # Assuming exact search always scans all
+        "fuzzy_cvs_searched": fuzzy_cvs_searched,
+        "summary": f"Multi-Pattern ({algorithm}): Exact scan on {total_cvs_processed} CVs in {exact_time*1000:.2f}ms. Fuzzy scan on {fuzzy_cvs_searched} CVs in {fuzzy_time*1000:.2f}ms.",
     }
     return jsonify(response)
 
@@ -195,4 +199,3 @@ def view_cv(detail_id):
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-

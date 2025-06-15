@@ -216,87 +216,165 @@ class SearchService:
             traceback.print_exc()
             return {"error": f"Processing error: {str(e)}"}
 
-    def perform_multiple_pattern_search(self, patterns: list[str], algorithm: str, num_matches: int):
+    def perform_multiple_pattern_search(
+        self, patterns: list[str], algorithm: str, num_matches: int
+    ) -> Tuple[
+        List[Dict[str, Any]], float, float, int, int
+    ]:  # Added fuzzy_time and fuzzy_cvs_searched
         """
         Performs multiple pattern search using the specified algorithm.
-        For AC (Aho-Corasick), uses true multiple pattern matching.
-        For KMP/BM, performs individual searches for each pattern.
+        Includes exact pattern matching and a fallback to fuzzy matching if needed.
         """
-        from src.core.pattern_matching.pattern_matcher_factory import PatternMatcherFactory
-        import time
-        
-        start_time = time.time()
-        
-        # Get all CV data
+        exact_start_time = time.time()
         all_cvs = self.cv_data_store.get_all_cvs()
-        results = []
-        
+        exact_pattern_matches_dict = {}  # Store by detail_id
+
+        if not all_cvs:
+            return [], 0.0, 0.0, 0, 0
+
+        valid_patterns = [p.strip().lower() for p in patterns if p and p.strip()]
+        if not valid_patterns:
+            return [], 0.0, 0.0, len(all_cvs), 0
+
+        # --- EXACT PATTERN MATCHING PHASE ---
         if algorithm.upper() == "AC":
-            # Use Aho-Corasick for true multiple pattern matching
-            matcher = PatternMatcherFactory.get_matcher("AC")
-            
+            try:
+                matcher = PatternMatcherFactory.get_matcher("AC")
+                for detail_id, cv_data in all_cvs.items():
+                    searchable_text = cv_data.get("flat_text", "").lower()
+                    if not searchable_text:
+                        continue
+                    pattern_counts = matcher.count_multiple_patterns(
+                        searchable_text, valid_patterns
+                    )
+                    total_matches = sum(pattern_counts.values())
+                    if total_matches > 0:
+                        exact_pattern_matches_dict[detail_id] = {
+                            "detail_id": detail_id,
+                            "cv_path": cv_data.get("cv_path"),
+                            "total_matches": total_matches,
+                            "matched_keywords": {
+                                k: v for k, v in pattern_counts.items() if v > 0
+                            },
+                            "match_type": "exact_multiple_ac",
+                        }
+            except ValueError as e:
+                print(f"[SearchService] Error creating AC matcher: {e}")
+                return [], 0.0, 0.0, len(all_cvs), 0
+        else:  # KMP or BM
+            try:
+                matcher = PatternMatcherFactory.get_matcher(algorithm)
+                for detail_id, cv_data in all_cvs.items():
+                    searchable_text = cv_data.get("flat_text", "").lower()
+                    if not searchable_text:
+                        continue
+                    current_cv_matches = {}
+                    current_cv_total_matches = 0
+                    for pattern in valid_patterns:
+                        count = matcher.count_occurrences(searchable_text, pattern)
+                        if count > 0:
+                            current_cv_matches[pattern] = count
+                            current_cv_total_matches += count
+                    if current_cv_total_matches > 0:
+                        exact_pattern_matches_dict[detail_id] = {
+                            "detail_id": detail_id,
+                            "cv_path": cv_data.get("cv_path"),
+                            "total_matches": current_cv_total_matches,
+                            "matched_keywords": current_cv_matches,
+                            "match_type": f"exact_multiple_{algorithm.lower()}",
+                        }
+            except ValueError as e:
+                print(f"[SearchService] Error creating {algorithm} matcher: {e}")
+                return [], 0.0, 0.0, len(all_cvs), 0
+
+        exact_execution_time = time.time() - exact_start_time
+
+        # --- FUZZY MATCHING PHASE for MULTIPLE PATTERNS ---
+        fuzzy_start_time = time.time()
+        fuzzy_pattern_matches_dict = {}
+        num_exact_pattern_found = len(exact_pattern_matches_dict)
+        cvs_for_fuzzy_search_multi = {}
+
+        if num_exact_pattern_found < num_matches:
+            print(
+                f"[SearchService Multi] Found {num_exact_pattern_found} exact pattern matches. Target: {num_matches}. Considering fuzzy search."
+            )
             for detail_id, cv_data in all_cvs.items():
-                searchable_text = cv_data["text"].lower()
-                
-                # Use Aho-Corasick for multiple pattern matching
-                pattern_counts = matcher.count_multiple_patterns(searchable_text, patterns)
-                
-                # Calculate total matches and create result if matches found
-                total_matches = sum(pattern_counts.values())
-                if total_matches > 0:
-                    matched_keywords = {k: v for k, v in pattern_counts.items() if v > 0}
-                    
-                    # Get real applicant data from database
-                    applicant_name, application_role, applicant_id = self._get_applicant_info(detail_id)
-                    
-                    result = {
-                        "applicant_id": applicant_id,
+                # Only consider CVs not already a strong exact pattern match,
+                # or if you want to augment exact matches with fuzzy ones, adjust this logic.
+                if detail_id not in exact_pattern_matches_dict:
+                    cvs_for_fuzzy_search_multi[detail_id] = cv_data
+
+        if cvs_for_fuzzy_search_multi:
+            for detail_id, cv_data in cvs_for_fuzzy_search_multi.items():
+                flat_text = cv_data.get("flat_text", "")
+                if not flat_text:
+                    continue
+
+                current_cv_fuzzy_details = {}
+                current_cv_fuzzy_score_sum = 0
+
+                # For multiple patterns, we try to fuzzy match each pattern
+                for (
+                    pattern_term
+                ) in valid_patterns:  # Each item in valid_patterns is a keyword/phrase
+                    match_info = find_similar_word(
+                        pattern_term, flat_text, threshold=0.80
+                    )  # Adjust threshold
+                    if match_info:
+                        best_word, score = match_info
+                        current_cv_fuzzy_details[f"{pattern_term} (~{best_word})"] = (
+                            f"{int(score*100)}%"
+                        )
+                        current_cv_fuzzy_score_sum += score
+
+                if current_cv_fuzzy_details:
+                    fuzzy_pattern_matches_dict[detail_id] = {
                         "detail_id": detail_id,
-                        "applicant_name": applicant_name,
-                        "application_role": application_role,
-                        "total_matches": total_matches,
-                        "matched_keywords": matched_keywords,
-                        "match_type": "multiple_pattern_ac",
-                        "cv_path": cv_data["cv_path"]
+                        "cv_path": cv_data.get("cv_path"),
+                        "total_matches": current_cv_fuzzy_score_sum,  # Sum of scores for ranking
+                        "matched_keywords": current_cv_fuzzy_details,
+                        "match_type": "fuzzy_multiple",
                     }
-                    results.append(result)
-        
-        else:
-            # Use KMP or BM for individual pattern searches
-            matcher = PatternMatcherFactory.get_matcher(algorithm)
-            
-            for detail_id, cv_data in all_cvs.items():
-                searchable_text = cv_data["text"].lower()
-                
-                # Search each pattern individually
-                matched_keywords = {}
-                total_matches = 0
-                
-                for pattern in patterns:
-                    count = matcher.count_occurrences(searchable_text, pattern.lower())
-                    if count > 0:
-                        matched_keywords[pattern] = count
-                        total_matches += count
-                
-                # Create result if any matches found
-                if total_matches > 0:
-                    # Get real applicant data from database
-                    applicant_name, application_role, applicant_id = self._get_applicant_info(detail_id)
-                    
-                    result = {
-                        "applicant_id": applicant_id,
-                        "detail_id": detail_id,
-                        "applicant_name": applicant_name,
-                        "application_role": application_role,
-                        "total_matches": total_matches,
-                        "matched_keywords": matched_keywords,
-                        "match_type": f"multiple_pattern_{algorithm.lower()}",
-                        "cv_path": cv_data["cv_path"]
-                    }
-                    results.append(result)
-        
-        # Sort by total matches and return top N
-        results.sort(key=lambda x: x["total_matches"], reverse=True)
-        execution_time = time.time() - start_time
-        
-        return results[:num_matches], execution_time, len(all_cvs)
+        fuzzy_execution_time = time.time() - fuzzy_start_time
+
+        # Combine results
+        combined_results_list_multi = list(exact_pattern_matches_dict.values()) + list(
+            fuzzy_pattern_matches_dict.values()
+        )
+
+        sorted_cvs_multi = sorted(
+            combined_results_list_multi,
+            key=lambda x: (
+                x.get("match_type", "").startswith("exact"),
+                x.get("total_matches", 0),
+            ),
+            reverse=True,
+        )
+        top_cvs_multi = sorted_cvs_multi[:num_matches]
+
+        final_results_multi = []
+        for cv_match_data in top_cvs_multi:
+            applicant_name, application_role, applicant_id_val = (
+                self._get_applicant_info(cv_match_data["detail_id"])
+            )
+            final_results_multi.append(
+                {
+                    "applicant_id": applicant_id_val,
+                    "detail_id": cv_match_data["detail_id"],
+                    "applicant_name": applicant_name,
+                    "application_role": application_role,
+                    "matched_keywords": cv_match_data["matched_keywords"],
+                    "total_matches": cv_match_data["total_matches"],
+                    "match_type": cv_match_data["match_type"],
+                    "cv_path": cv_match_data["cv_path"],
+                }
+            )
+
+        return (
+            final_results_multi,
+            exact_execution_time,
+            fuzzy_execution_time,
+            len(all_cvs),
+            len(cvs_for_fuzzy_search_multi),
+        )

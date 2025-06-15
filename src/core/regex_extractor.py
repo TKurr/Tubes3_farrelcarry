@@ -20,8 +20,6 @@ experience_sections = [
 
 education_sections = ["education", "education and training", "educational background"]
 
-# A comprehensive list to identify the start of the *next* section,
-# which helps find the end of the current section.
 all_known_sections = (
     skill_sections
     + experience_sections
@@ -69,7 +67,6 @@ all_known_sections = (
 
 def extract_skills(text: str) -> list[str]:
     """Extracts a list of skills from the text."""
-    # Pattern to find a skill section header and capture everything until the next known header
     pattern = f"\\n({'|'.join(map(re.escape, skill_sections))})\\n(.*?)(?=\\n({'|'.join(map(re.escape, all_known_sections))})\\n|$)"
     match = re.search(pattern, text, flags=re.IGNORECASE | re.DOTALL)
     if match:
@@ -82,7 +79,6 @@ def extract_skills(text: str) -> list[str]:
 
 def extract_education(text: str) -> list[str]:
     """Extracts a list of education entries from the text."""
-    # This uses a different approach: looks for keywords related to institutions.
     patterns = [
         r"university of [a-zA-Z ]+",
         r"[a-zA-Z ]+ university",
@@ -106,15 +102,12 @@ def extract_education(text: str) -> list[str]:
 
 def extract_experience(text: str) -> list[str]:
     """Extracts job titles or experience entries from the text."""
-    # Pattern to find an experience section header and capture the body
     pattern = f"\\n({'|'.join(map(re.escape, experience_sections))})\\n(.*?)(?=\\n({'|'.join(map(re.escape, all_known_sections))})\\n|$)"
     match = re.search(pattern, text, flags=re.IGNORECASE | re.DOTALL)
     if not match:
         return []
 
     body = match.group(2).strip()
-    # For simplicity, we'll treat each line in the experience section as a separate entry.
-    # A more complex parser could be built here to find dates, companies, etc.
     experiences = [line.strip() for line in body.splitlines() if line.strip()]
     return experiences
 
@@ -132,8 +125,6 @@ def extract_cv_summary(text: str) -> dict:
     """
     The main extraction orchestrator. Runs all other extraction functions.
     """
-    # Use the original text (with newlines) for section-based parsing
-    # We add newlines at start/end to help the regex anchors (^)
     formatted_text = "\n" + text.lower() + "\n"
 
     return {

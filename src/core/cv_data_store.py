@@ -1,8 +1,5 @@
 # src/core/cv_data_store.py
 
-# This module defines the CVDataStore class, which is now made more robust
-# for multithreading using a threading.Event object.
-
 import threading
 
 
@@ -38,9 +35,9 @@ class CVDataStore:
         """
         self.cvs[detail_id] = {
             "cv_path": cv_path,
-            "flat_text": flat_text,  # For fast searching
-            "structured_text": structured_text,  # For detailed summary extraction
-            "db_info": db_info,  # Cached DB data (name, role, etc.)
+            "flat_text": flat_text,  
+            "structured_text": structured_text,  
+            "db_info": db_info,  
         }
 
     def get_all_cvs(self) -> dict:
@@ -63,7 +60,7 @@ class CVDataStore:
             status = {
                 "parsed_count": progress,
                 "total_count": total,
-                "progress": progress,      # Keep for backward compatibility
+                "progress": progress,     
                 "total": total,
                 "is_done": is_done
             }

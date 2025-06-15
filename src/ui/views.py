@@ -254,7 +254,7 @@ def build_main_view(
                 - 15
             )
 
-            for result in response_data["search_results"]:
+            for i, result in enumerate(response_data["search_results"]):
                 detail_id = result.get("detail_id")
                 matched_keywords = result.get("matched_keywords", {})
                 keywords_column = ft.Column(spacing=2)
@@ -271,7 +271,7 @@ def build_main_view(
                         ft.Column(
                             [
                                 ft.Text(
-                                    f"{result.get('applicant_name', 'N/A')}",
+                                    f"{i + 1}. {result.get('applicant_name', 'N/A')}",
                                     style=ft.TextThemeStyle.TITLE_MEDIUM,
                                     weight=ft.FontWeight.BOLD,
                                 ),
