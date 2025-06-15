@@ -202,7 +202,7 @@ def build_main_view(
     )
     algo_dropdown = ft.Dropdown(
         label="Algorithm",
-        options=[ft.dropdown.Option("KMP"), ft.dropdown.Option("BM")],
+        options=[ft.dropdown.Option("KMP"), ft.dropdown.Option("BM"), ft.dropdown.Option("AC")],
         value="KMP",
         border_radius=8,
         width=120,
@@ -367,6 +367,10 @@ def build_main_view(
             page.update()
             return
 
+        # Parse keywords - detect if multiple keywords are provided
+        keywords_list = [k.strip().lower() for k in kw.split(',') if k.strip()]
+        use_multiple_search = len(keywords_list) > 1
+        
         search_button.disabled = True
         results_view.controls.clear()
         results_view.controls.append(
@@ -383,9 +387,16 @@ def build_main_view(
         summary_text.value = ""
         page.update()
 
-        response = api_client.search(kw, algo, top_n)
+        # Use multiple pattern search if multiple keywords are provided
+        if use_multiple_search:
+            response = api_client.search_multiple_patterns(keywords_list, algo, top_n)  # Pass algorithm
+            search_type = "multiple"
+        else:
+            response = api_client.search(kw, algo, top_n)
+            search_type = "single"
+        
+        search_state["search_type"] = search_type
         search_state["last_response"] = response
-
         _populate_results(response)
         search_button.disabled = False
         page.update()

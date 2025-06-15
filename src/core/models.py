@@ -27,7 +27,7 @@ class Application:
 
 @dataclass
 class CVDocument:
-    cv_id: int  # corresponds to Application.detail_id
+    cv_id: int 
     raw_pdf_path: str
     text_for_pattern_matching: str
     text_for_regex: str

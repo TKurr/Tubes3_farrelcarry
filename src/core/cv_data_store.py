@@ -13,19 +13,15 @@ class CVDataStore:
     """
 
     def __init__(self):
-        # The main data dictionary.
         self.cvs = {}
 
-        # A dictionary to track the progress of the initial background parsing.
         self._parsing_status = {
             "progress": 0,
             "total": 0,
         }
 
-        # A lock to protect the status dictionary during updates.
         self._lock = threading.Lock()
 
-        # An Event is a much better tool for signaling completion between threads.
         self.parsing_complete_event = threading.Event()
 
     def add_cv(
@@ -48,15 +44,33 @@ class CVDataStore:
         }
 
     def get_all_cvs(self) -> dict:
-        """Returns the entire dictionary of processed CVs."""
         return self.cvs
 
     def get_status(self) -> dict:
         """Returns a copy of the current parsing status in a thread-safe way."""
         with self._lock:
-            status = self._parsing_status.copy()
-
-        status["is_done"] = self.parsing_complete_event.is_set()
+            print(f"[CVDataStore] get_status() INSIDE lock: _parsing_status = {self._parsing_status}")
+            
+            progress = self._parsing_status["progress"]
+            total = self._parsing_status["total"]
+            
+            is_done = self.parsing_complete_event.is_set()
+            
+            if is_done and total > 0:
+                progress = total
+                self._parsing_status["progress"] = total  
+            
+            status = {
+                "parsed_count": progress,
+                "total_count": total,
+                "progress": progress,      # Keep for backward compatibility
+                "total": total,
+                "is_done": is_done
+            }
+        
+        # Debug logging
+        print(f"[CVDataStore] get_status() returning: parsed={progress}, total={total}, is_done={is_done}")
+        
         return status
 
     def update_status(self, progress: int, total: int):

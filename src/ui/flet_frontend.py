@@ -1,12 +1,7 @@
-# src/ui/flet_frontend.py
-
-# This is the main controller for the Flet application. It handles routing,
-# app state, and orchestrates the UI by calling view-building functions.
-
 import flet as ft
 import time
 
-# Import the refactored components
+
 from src.ui.api_client import ApiClient
 from src.ui.views import build_main_view, build_summary_view
 
@@ -24,22 +19,14 @@ def main_flet_app(page: ft.Page):
 
     api_client = ApiClient()
 
-    # State dictionary to hold search results across view changes
+
     search_state = {"last_response": None}
 
     def build_initial_loading_view() -> ft.View:
-        """
-        Builds the view shown on startup while the backend parses files.
-        This view is responsible for polling the /status endpoint.
-        """
         progress_bar = ft.ProgressBar(width=400, value=0)
         status_text = ft.Text("Connecting to backend...")
 
         def check_backend_status():
-            """
-            Polls the backend status. When complete, navigates to the main view.
-            This is a robust implementation to prevent endless polling.
-            """
             print("[GUI] Started polling for backend status...")
             
             while True:
@@ -49,16 +36,16 @@ def main_flet_app(page: ft.Page):
                     total = status.get("total_count", 1)
                     is_done = status.get("is_done", False)
                     
-                    # Update UI elements
+
                     status_text.value = f"Parsing CVs: {parsed} / {total}"
                     progress_bar.value = parsed / total if total > 0 else 0
                     
                     print(f"[GUI] Status: {parsed}/{total}, is_done: {is_done}")  # Debug log
                     
-                    # Force UI update
+
                     page.update()
                     
-                    # Check if parsing is complete
+
                     if is_done:
                         print("[GUI] Backend reported parsing is complete. Navigating to main view.")
                         page.go("/")
@@ -67,14 +54,12 @@ def main_flet_app(page: ft.Page):
                     status_text.value = "Backend is unavailable. Retrying..."
                     page.update()
                 
-                # Sleep before next poll
+
                 time.sleep(1)
-            
-            # Navigation code after the loop exits
+
             print("[GUI] Backend reported parsing is complete. Navigating to main view.")
             page.go("/")
 
-        # Start the polling thread when this view is created.
         page.run_thread(check_backend_status)
 
         return ft.View(
@@ -111,7 +96,6 @@ def main_flet_app(page: ft.Page):
                 build_summary_view(page, api_client, int(page.route.split("/")[-1]))
             )
         else:
-            # Default to the initial loading view
             page.views.append(build_initial_loading_view())
 
         page.update()
@@ -124,7 +108,7 @@ def main_flet_app(page: ft.Page):
     page.on_route_change = route_change
     page.on_view_pop = view_pop
 
-    # Start the application on the loading route
+
     page.go("/loading")
 
 

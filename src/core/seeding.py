@@ -29,7 +29,7 @@ roles = [
     "TEACHER",
 ]
 
-# Generate completely new SQL file
+
 sql_file_path = "../database/database.sql"
 with open(sql_file_path, "w") as f:
     # Write database structure
@@ -59,13 +59,13 @@ CREATE TABLE ApplicationDetail (
 """
     )
 
-    # Generate applicants - one for each CV
+
     f.write("-- INSERT INTO ApplicantProfile\n")
     for i, cv_file in enumerate(all_cv_files):
         first_name = fake.first_name()
         last_name = fake.last_name()
         dob = fake.date_of_birth(minimum_age=21, maximum_age=35)
-        address = fake.address().replace("\n", ", ").replace("'", "''")  # Escape quotes
+        address = fake.address().replace("\n", ", ").replace("'", "''")  
         phone = "08" + "".join(fake.random_choices(elements="0123456789", length=10))
 
         f.write(
@@ -73,20 +73,18 @@ CREATE TABLE ApplicationDetail (
             f"VALUES ('{first_name}', '{last_name}', '{dob}', '{address}', '{phone}');\n"
         )
 
-    # Generate application details - one for each CV
     f.write("\n-- INSERT INTO ApplicationDetail\n")
     for i, cv_file in enumerate(all_cv_files):
         applicant_id = i + 1
-        # Use Python's random.choice instead of fake.random_choice
         random_role = random.choice(roles)
 
-        # Store only the filename
+
         f.write(
             f"INSERT INTO ApplicationDetail (applicant_id, application_role, cv_path) "
             f"VALUES ({applicant_id}, '{random_role}', '{cv_file}');\n"
         )
 
-print("✅ Fresh SQL file generated!")
+print("Fresh SQL file generated!")
 print(f"- Created {len(all_cv_files)} applicants")
 print(f"- Created {len(all_cv_files)} applications")
 print(f"- All CV paths are just filenames")
