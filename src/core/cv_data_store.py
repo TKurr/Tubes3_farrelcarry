@@ -4,11 +4,6 @@ import threading
 
 
 class CVDataStore:
-    """
-    A thread-safe, in-memory data store for CV information.
-    It uses a threading.Event to reliably signal when background parsing is complete.
-    """
-
     def __init__(self):
         self.cvs = {}
 
@@ -29,10 +24,6 @@ class CVDataStore:
         structured_text: str,
         db_info: dict,
     ):
-        """
-        Adds a processed CV to the data store, storing both text versions
-        and the pre-fetched database information.
-        """
         self.cvs[detail_id] = {
             "cv_path": cv_path,
             "flat_text": flat_text,  
@@ -44,7 +35,6 @@ class CVDataStore:
         return self.cvs
 
     def get_status(self) -> dict:
-        """Returns a copy of the current parsing status in a thread-safe way."""
         with self._lock:
             print(f"[CVDataStore] get_status() INSIDE lock: _parsing_status = {self._parsing_status}")
             
@@ -71,7 +61,6 @@ class CVDataStore:
         return status
 
     def update_status(self, progress: int, total: int):
-        """Updates the parsing progress and sets the completion event when done."""
         with self._lock:
             self._parsing_status["progress"] = progress
             self._parsing_status["total"] = total

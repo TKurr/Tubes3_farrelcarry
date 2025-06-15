@@ -1,8 +1,3 @@
-# src/ui/views.py
-
-# This file contains functions that build the different UI views (pages)
-# for the Flet application.
-
 import flet as ft
 from typing import Any, Dict
 from functools import partial
@@ -10,12 +5,10 @@ import math
 
 from src.ui.api_client import ApiClient
 
-# --- UI Configuration ---
-GRID_COLUMNS = 3  # You can change this value
+GRID_COLUMNS = 3  
 
 
 def show_loading_view(message: str) -> ft.View:
-    """Displays a full-page loading indicator."""
     return ft.View(
         "/loading",
         [
@@ -35,9 +28,8 @@ def show_loading_view(message: str) -> ft.View:
 
 
 def build_summary_view(page: ft.Page, api_client: ApiClient, detail_id: int) -> ft.View:
-    """Builds the detailed CV summary page."""
-
     response = api_client.get_summary(detail_id)
+    print (response)
 
     if not response:
         return ft.View(
@@ -105,17 +97,19 @@ def build_summary_view(page: ft.Page, api_client: ApiClient, detail_id: int) -> 
     job_history_items = [
         ft.Column(
             [
-                ft.Text(job.get("title", "N/A"), weight=ft.FontWeight.BOLD),
-                ft.Text(
-                    f"({job.get('dates', 'N/A')})",
-                    italic=True,
-                    color=ft.Colors.BLUE_GREY_500,
-                ),
+                ft.Text(job.get('title', 'N/A'), weight=ft.FontWeight.BOLD),
+
+                *[
+                    ft.Text(f"- {desc}", size=14)
+                    for desc in job.get("descriptions", [])  
+                    if desc.strip()
+                ]
             ],
-            spacing=2,
+            spacing=4,
         )
         for job in response.get("job_history", [])
     ]
+
     if not job_history_items:
         job_history_items.append(ft.Text("No job history listed."))
 
@@ -124,14 +118,7 @@ def build_summary_view(page: ft.Page, api_client: ApiClient, detail_id: int) -> 
             ft.Column(
                 [
                     ft.Text("Work Experience", style=ft.TextThemeStyle.TITLE_MEDIUM),
-                    *job_history_items,
-                    ft.Divider(height=10, color="transparent"),
-                    ft.Text(
-                        "Summary Overview",
-                        style=ft.TextThemeStyle.TITLE_SMALL,
-                        weight=ft.FontWeight.BOLD,
-                    ),
-                    ft.Text(response.get("overall_summary", "N/A"), selectable=True),
+                    *job_history_items
                 ],
                 spacing=10,
             ),
@@ -142,12 +129,11 @@ def build_summary_view(page: ft.Page, api_client: ApiClient, detail_id: int) -> 
     education_items = [
         ft.Column(
             [
-                ft.Text(edu.get("degree", "N/A"), weight=ft.FontWeight.BOLD),
-                ft.Text(edu.get("university", "N/A"), color=ft.Colors.BLUE_GREY_500),
+                ft.Text(f"{i+1}. {edu.get('degree', 'N/A')}", weight=ft.FontWeight.BOLD),
             ],
             spacing=2,
         )
-        for edu in response.get("education", [])
+        for i, edu in enumerate(response.get("education", []))
     ]
     if not education_items:
         education_items.append(ft.Text("No education history listed."))

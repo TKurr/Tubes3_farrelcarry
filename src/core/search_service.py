@@ -14,10 +14,6 @@ from src.core.pdf_processor import extract_hybrid_info
 
 
 class SearchService:
-    """
-    Orchestrates the search process using pre-processed data from the CVDataStore.
-    """
-
     def __init__(self, cv_data_store: CVDataStore, db_manager=None):
         print("[SearchService] Initialized with CVDataStore and DatabaseManager.")
         self.cv_data_store = cv_data_store
@@ -26,9 +22,6 @@ class SearchService:
     def perform_search(
         self, keywords_str: str, algorithm_type: str, num_top_matches: int
     ) -> Tuple[List[Dict[str, Any]], float, float, int, int]:
-        """
-        Performs a search on the in-memory flat_text data.
-        """
         exact_start_time = time.time()
         keywords = [k.strip().lower() for k in keywords_str.split(",") if k.strip()]
         if not keywords:
@@ -158,7 +151,6 @@ class SearchService:
             return "DB Error", cached_role, cached_applicant_id
 
     def get_cv_summary(self, detail_id: int) -> Dict[str, Any]:
-        """Builds a detailed summary using the pre-processed structured_text of a CV."""
         print(f"[SearchService] Fetching summary for detail_id: {detail_id}")
 
         cv_content = self.cv_data_store.get_all_cvs().get(detail_id)
@@ -221,10 +213,6 @@ class SearchService:
     ) -> Tuple[
         List[Dict[str, Any]], float, float, int, int
     ]:  # Added fuzzy_time and fuzzy_cvs_searched
-        """
-        Performs multiple pattern search using the specified algorithm.
-        Includes exact pattern matching and a fallback to fuzzy matching if needed.
-        """
         exact_start_time = time.time()
         all_cvs = self.cv_data_store.get_all_cvs()
         exact_pattern_matches_dict = {}  # Store by detail_id
@@ -300,8 +288,6 @@ class SearchService:
                 f"[SearchService Multi] Found {num_exact_pattern_found} exact pattern matches. Target: {num_matches}. Considering fuzzy search."
             )
             for detail_id, cv_data in all_cvs.items():
-                # Only consider CVs not already a strong exact pattern match,
-                # or if you want to augment exact matches with fuzzy ones, adjust this logic.
                 if detail_id not in exact_pattern_matches_dict:
                     cvs_for_fuzzy_search_multi[detail_id] = cv_data
 
@@ -314,7 +300,6 @@ class SearchService:
                 current_cv_fuzzy_details = {}
                 current_cv_fuzzy_score_sum = 0
 
-                # For multiple patterns, we try to fuzzy match each pattern
                 for (
                     pattern_term
                 ) in valid_patterns:  # Each item in valid_patterns is a keyword/phrase
@@ -332,13 +317,12 @@ class SearchService:
                     fuzzy_pattern_matches_dict[detail_id] = {
                         "detail_id": detail_id,
                         "cv_path": cv_data.get("cv_path"),
-                        "total_matches": current_cv_fuzzy_score_sum,  # Sum of scores for ranking
+                        "total_matches": current_cv_fuzzy_score_sum,  
                         "matched_keywords": current_cv_fuzzy_details,
                         "match_type": "fuzzy_multiple",
                     }
         fuzzy_execution_time = time.time() - fuzzy_start_time
 
-        # Combine results
         combined_results_list_multi = list(exact_pattern_matches_dict.values()) + list(
             fuzzy_pattern_matches_dict.values()
         )

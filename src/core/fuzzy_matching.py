@@ -1,16 +1,4 @@
 def calculate_levenshtein_distance(s1: str, s2: str) -> int:
-    """
-    Calculates the Levenshtein distance between two strings.
-    This is the number of edits (insertions, deletions, or substitutions)
-    required to change one word into the other.
-
-    Args:
-        s1: The first string.
-        s2: The second string.
-
-    Returns:
-        The Levenshtein distance as an integer.
-    """
     s1 = s1.lower()
     s2 = s2.lower()
     m, n = len(s1), len(s2)

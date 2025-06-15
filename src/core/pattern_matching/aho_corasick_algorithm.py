@@ -26,19 +26,16 @@ class AhoCorasickAlgorithm(PatternMatcher):
     def _build_failure_links(self) -> None:
         queue = deque()
         
-        # Set failure links for level 1 nodes (direct children of root)
         for child in self.root.children.values():
             child.failure = self.root
             queue.append(child)
 
-        # Build failure links for deeper levels
         while queue:
             current = queue.popleft()
             
             for char, child in current.children.items():
                 queue.append(child)
                 
-                # Find the failure link
                 failure = current.failure
                 while failure is not None and char not in failure.children:
                     failure = failure.failure
@@ -48,7 +45,6 @@ class AhoCorasickAlgorithm(PatternMatcher):
                 else:
                     child.failure = self.root
                 
-                # Add output from failure link
                 child.output.extend(child.failure.output)
 
     def _search_patterns(self, text: str) -> dict[int, int]:
@@ -56,7 +52,6 @@ class AhoCorasickAlgorithm(PatternMatcher):
         current = self.root
         
         for char in text:
-            # Follow failure links until we find a match or reach root
             while current is not None and char not in current.children:
                 current = current.failure
             
@@ -65,7 +60,6 @@ class AhoCorasickAlgorithm(PatternMatcher):
             else:
                 current = current.children[char]
                 
-                # Record all pattern matches at this position
                 for pattern_idx in current.output:
                     pattern_counts[pattern_idx] += 1
         
@@ -75,15 +69,12 @@ class AhoCorasickAlgorithm(PatternMatcher):
         if not pattern or not text or len(pattern) > len(text):
             return 0
         
-        # Initialize for single pattern
         self.patterns = [pattern]
         self.root = TrieNode()
         
-        # Build trie and failure links
         self._build_trie(self.patterns)
         self._build_failure_links()
         
-        # Search and return count for the single pattern
         pattern_counts = self._search_patterns(text)
         return pattern_counts[0]
 
@@ -91,28 +82,22 @@ class AhoCorasickAlgorithm(PatternMatcher):
         if not patterns or not text:
             return {pattern: 0 for pattern in patterns}
         
-        # Filter out empty patterns
         valid_patterns = [p for p in patterns if p and len(p) <= len(text)]
         if not valid_patterns:
             return {pattern: 0 for pattern in patterns}
         
-        # Initialize
         self.patterns = valid_patterns
         self.root = TrieNode()
         
-        # Build trie and failure links
         self._build_trie(self.patterns)
         self._build_failure_links()
         
-        # Search and return counts
         pattern_counts = self._search_patterns(text)
         
-        # Map back to original pattern strings
         result = {}
         for i, pattern in enumerate(valid_patterns):
             result[pattern] = pattern_counts[i]
         
-        # Add zero counts for invalid patterns
         for pattern in patterns:
             if pattern not in result:
                 result[pattern] = 0

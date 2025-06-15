@@ -7,7 +7,6 @@ from src.ui.views import build_main_view, build_summary_view
 
 
 def main_flet_app(page: ft.Page):
-    """The main function that builds and manages the Flet GUI."""
     page.title = "CV Analyzer"
     page.theme_mode = ft.ThemeMode.LIGHT
     page.theme = ft.Theme(color_scheme_seed="blue_grey", font_family="Roboto")
@@ -85,7 +84,6 @@ def main_flet_app(page: ft.Page):
             ],
         )
 
-    # --- Router for multi-page navigation ---
     def route_change(route):
         page.views.clear()
 
@@ -113,7 +111,6 @@ def main_flet_app(page: ft.Page):
 
 
 def start_gui(use_web_browser: bool = False):
-    """Launches the Flet application."""
     print("[Main] Launching Flet GUI application...")
     view_mode = ft.WEB_BROWSER if use_web_browser else ft.FLET_APP
     ft.app(target=main_flet_app, view=view_mode, assets_dir="assets")

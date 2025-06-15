@@ -18,19 +18,11 @@ from config import API_HOST, API_PORT
 
 
 def start_backend():
-    """
-    Target function for the backend process.
-    This will run the Flask development server.
-    """
     print("[Main] Starting backend API server in a background process...")
 
     app.run(host=API_HOST, port=API_PORT, debug=False)
 
 def wait_for_backend():
-    """
-    Actively polls the backend's /status endpoint until it gets a successful
-    response, ensuring the server is ready to accept connections.
-    """
     print("[Main] Waiting for backend to become available...")
     start_time = time.time()
     while time.time() - start_time < 30:

@@ -12,9 +12,6 @@ from src.core.pdf_processor import (
 
 
 def _get_cvs_from_database(db_manager) -> List[Dict[str, Any]]:
-    """
-    REAL FUNCTION: Fetches application details from the MySQL database.
-    """
     print("[BackgroundParser] Fetching CV applications from database...")
     try:
         applications = db_manager.get_all_applications()
@@ -38,10 +35,6 @@ def _get_cvs_from_database(db_manager) -> List[Dict[str, Any]]:
 
 
 def parsing_thread_worker(cv_data_store: CVDataStore, db_manager):
-    """
-    This function is the target for the background thread.
-    It finds, processes, and stores all CVs in the CVDataStore.
-    """
     print("[BackgroundParser] Starting background PDF processing thread...")
 
     applications = _get_cvs_from_database(db_manager)

@@ -11,13 +11,10 @@ from config import API_HOST, API_PORT
 
 
 class ApiClient:
-    """Handles all communication with the backend API."""
-
     def __init__(self):
         self.base_url = f"http://{API_HOST}:{API_PORT}"
 
     def get_status(self) -> Optional[Dict[str, Any]]:
-        """Polls the /status endpoint to get parsing progress."""
         try:
             response = requests.get(f"{self.base_url}/status", timeout=1)
             response.raise_for_status()
@@ -29,7 +26,6 @@ class ApiClient:
     def search(
         self, keywords: str, algorithm: str, num_matches: int
     ) -> Optional[Dict[str, Any]]:
-        """Sends a search request to the /search endpoint."""
         payload = {
             "keywords": keywords,
             "search_algorithm": algorithm,
@@ -46,7 +42,6 @@ class ApiClient:
             return None
 
     def get_summary(self, detail_id: int) -> Optional[Dict[str, Any]]:
-        """Fetches a detailed CV summary from the /summary/<id> endpoint."""
         try:
             response = requests.get(f"{self.base_url}/summary/{detail_id}", timeout=10)
             response.raise_for_status()
@@ -58,7 +53,6 @@ class ApiClient:
     def search_multiple_patterns(
         self, patterns: list[str], algorithm: str, num_matches: int
     ) -> Optional[Dict[str, Any]]:
-        """Sends a multiple pattern search request with specified algorithm."""
         payload = {
             "patterns": patterns,
             "search_algorithm": algorithm,  # Use the selected algorithm

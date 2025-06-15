@@ -11,7 +11,6 @@ from PIL import Image
 
 
 def extract_text_from_pdf(pdf_path: str) -> str:
-    """Extracts all text from a single PDF, using OCR as a fallback."""
     all_text = ""
     try:
         with pdfplumber.open(pdf_path) as pdf:
@@ -20,10 +19,9 @@ def extract_text_from_pdf(pdf_path: str) -> str:
                 if text:
                     all_text += text + "\n"
                 else:
-                    # fallback to OCR if no text is extracted
                     im = page.to_image(
                         resolution=300
-                    ).original  # Ensure Image is imported from PIL
+                    ).original  
                     ocr_text = pytesseract.image_to_string(im)
                     all_text += ocr_text + "\n"
     except Exception as e:
@@ -34,7 +32,6 @@ def extract_text_from_pdf(pdf_path: str) -> str:
 def clean_text(
     text: str,
 ) -> str:
-    """Removes newlines, specific chars, and normalizes whitespace."""
     text = (
         text.strip()
         .replace("\n", " ")
@@ -46,23 +43,13 @@ def clean_text(
     return text
 
 
-# --- Flat Text Formatting ---
 def format_flat_text(text: str) -> str:
-    """
-    Flattens text for pattern matching by removing special chars and making it lowercase.
-    Operates on the raw text to preserve as much original content as possible before flattening.
-    """
     temp_text = re.sub(r"[^\w\s-]", "", text)  # Keep hyphens
     temp_text = re.sub(r"\s+", " ", temp_text)
     return temp_text.lower().strip()
 
 
-# --- Detailed Information Extractor ---
 def extract_detailed_info(text: str) -> Dict[str, Any]:
-    """
-    This is the primary function for getting detailed summary data.
-    It expects text that has preserved its original structure (newlines, etc.).
-    """
     flags = re.DOTALL | re.IGNORECASE
 
     name_pattern = re.findall(r"([A-Z][a-z]+(?: [A-Z][a-z]+)+)", text)
@@ -113,17 +100,37 @@ def extract_detailed_info(text: str) -> Dict[str, Any]:
     )
 
     experience_pattern = re.findall(
-        r"(Experience|Work History|Employment)(.*?)(Education|Skills|Projects|$)",
+        r"(Experience|Work History|Employment)(.*?)(Education|Skills|Projects|Career Overview|$)",
         text,
         flags=flags,
     )
     experience_text = experience_pattern[0][1].strip() if experience_pattern else ""
-    experience_entries = re.split(r"\n\s*\n+", experience_text)
-    experience = [
-        exp.replace("\n", " ").strip() for exp in experience_entries if exp.strip()
-    ]
+
+    entries = re.split(
+        r"(?=(?:[A-Z][a-z/&() ]{2,50}(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)?\s*\d{4}))",
+        experience_text
+    )
+
+    experience = []
+    for entry in entries:
+        lines = [l.strip() for l in entry.splitlines() if len(l.strip()) > 3]
+        if not lines:
+            continue
+
+        # Gabungkan kalimat bullet yang pecah
+        combined = " ".join(lines).strip()
+        sentences = re.split(r"\.\s+(?=[A-Z])", combined)
+        if not sentences:
+            continue
+
+        experience.append({
+            "title": sentences[0].strip(),
+            "descriptions": [s.strip() for s in sentences[1:] if len(s.strip()) > 4]
+        })
+
     if not experience:
-        experience = ["No experience listed"]
+        experience = [{"title": "No experience listed", "descriptions": []}]
+
 
     education_pattern = re.findall(
         r"(Education|Academic Background)(.*?)(Skills|Experience|Projects|$)",
@@ -152,7 +159,6 @@ def extract_detailed_info(text: str) -> Dict[str, Any]:
     if not projects:
         projects = ["No projects listed"]
 
-    # Contact Info (using your new regex's approach)
     contact_pattern_header = re.findall(
         r"(Contact Information|Contact)(.*?)(PROFILE|SUMMARY|OBJECTIVE|EXPERIENCE|SKILLS|EDUCATION|PROJECTS|CERTIFICATIONS|$)",
         text,
@@ -162,7 +168,6 @@ def extract_detailed_info(text: str) -> Dict[str, Any]:
         contact_pattern_header[0][1].strip() if contact_pattern_header else ""
     )
 
-    # Try to find specific details within the block or globally if no block
     email_match = re.search(
         r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}", contact_info_block or text
     )
@@ -186,33 +191,23 @@ def extract_detailed_info(text: str) -> Dict[str, Any]:
         "Summary": summary,
         "Certifications": certifications,
         "Skills": skills,
-        "Experience": experience,  # List of strings (experience blocks)
-        "Education": education_entries,  # List of strings (education lines/blocks)
-        "Projects": projects,  # List of strings (project blocks)
+        "Experience": experience, 
+        "Education": education_entries, 
+        "Projects": projects,  
         "Contact Info": contact_info_str,
     }
 
 
-# --- Hybrid function will now use your new extract_detailed_info ---
 def extract_hybrid_info(text: str) -> Dict[str, Any]:
-    """
-    The 'text' input should be the raw text from the PDF (output of extract_text_from_pdf),
-    as extract_detailed_info uses regex that benefits from original document structure.
-    """
     return extract_detailed_info(text)
 
 
-# --- Helper Function for finding files (if needed by background_parser fallback) ---
 def find_pdf_files(data_directory: str) -> Iterator[str]:
-    """
-    A helper to discover all PDF files.
-    Yields the full path for each PDF file found in the specified data_directory.
-    """
     if not os.path.isdir(data_directory):
         print(f"[PdfProcessor] Error: Data directory not found at '{data_directory}'")
         return
     for root, _, files in os.walk(data_directory):
-        for file_name in files:  # Renamed 'file' to 'file_name' to avoid conflict
+        for file_name in files: 
             if file_name.lower().endswith(".pdf"):
                 yield os.path.join(root, file_name)
 
@@ -223,13 +218,13 @@ if __name__ == "__main__":
     src_dir = os.path.dirname(core_dir)
     project_root = os.path.dirname(src_dir)
 
-    test_pdf_filename = "10984392.pdf"  # Example filename
+    test_pdf_filename = "10984392.pdf" 
     test_pdf_path = os.path.join(project_root, "data", test_pdf_filename)
 
     if not os.path.exists(test_pdf_path):
         print(f"Test PDF not found at: {test_pdf_path}")
         print(
-            "Please ensure a PDF (e.g., 10984392.pdf) exists in the 'data' directory at the project root, or update the path."
+            "Please ensure a PDF exists in the 'data' directory"
         )
     else:
         print(f"Testing with PDF: {test_pdf_path}")
@@ -249,7 +244,6 @@ if __name__ == "__main__":
             else:
                 print(value)
 
-        # 3. Test format_flat_text (for search) using the raw_content
         print("\n--- Testing format_flat_text with raw_text (first 500 chars) ---")
         flat_output = format_flat_text(raw_content)
         print(flat_output[:500] + "..." if len(flat_output) > 500 else flat_output)
