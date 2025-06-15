@@ -12,6 +12,7 @@ from flask import Flask, request, jsonify, send_file
 from src.core.search_service import SearchService
 from src.core.cv_data_store import CVDataStore
 from src.core.background_parser import parsing_thread_worker
+from src.core.pdf_processor import extract_hybrid_info
 
 # --- Database Import ---
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", "core"))
@@ -136,8 +137,6 @@ if __name__ == "__main__":
 @app.route("/view_cv/<int:detail_id>", methods=["GET"])
 def view_cv(detail_id):
     """Serve PDF file for viewing in browser"""
-    from config import DATA_DIR
-
     try:
         # Get the CV path from database
         applications = database_manager.get_all_applications()
@@ -148,12 +147,28 @@ def view_cv(detail_id):
         if not application:
             return jsonify({"error": "CV not found"}), 404
 
-        cv_path = os.path.join(DATA_DIR, application.cv_path)
+        cv_path = application.cv_path
 
-        if not os.path.exists(cv_path):
-            return jsonify({"error": f"PDF file not found: {cv_path}"}), 404
+        # Extract just the filename, removing any role directory
+        if "/" in cv_path:
+            cv_filename = cv_path.split("/")[-1]  # Extract filename
+        else:
+            cv_filename = cv_path
 
-        return send_file(cv_path, as_attachment=False, mimetype="application/pdf")
+        # Construct path directly in data/ - go up 3 levels from src/api/app.py to project root
+        project_root = os.path.dirname(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        )
+        absolute_cv_path = os.path.join(project_root, "data", cv_filename)
+
+        print(f"[Flask] Looking for PDF at: {absolute_cv_path}")  # Debug line
+
+        if not os.path.exists(absolute_cv_path):
+            return jsonify({"error": f"PDF file not found: {absolute_cv_path}"}), 404
+
+        return send_file(
+            absolute_cv_path, as_attachment=False, mimetype="application/pdf"
+        )
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500

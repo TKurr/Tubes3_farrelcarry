@@ -11,7 +11,7 @@ def main():
 
     try:
         DB_NAME = "cvApplicationDatabase"
-        SQL_FILE = "../database/database.sql"
+        SQL_FILE = "../database/tubes3_seeding.sql"
 
         setup_database(
             host="localhost",

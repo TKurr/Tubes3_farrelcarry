@@ -11,16 +11,18 @@ from typing import Iterator
 import pdfplumber
 import pytesseract
 from PIL import Image
-from config import DATA_DIR
+
+# from config import DATA_DIR
 
 
 def extract_summary(text: str) -> str:
     pattern = re.compile(
         r"(?ms)^Summary\s*(.*?)\s*(?=^(?:Highlights|Skills|Experience|Education)\b)",
-        re.MULTILINE
+        re.MULTILINE,
     )
     m = pattern.search(text)
     return m.group(1).strip() if m else ""
+
 
 def extract_skills(text: str) -> list[str]:
     """
@@ -28,16 +30,19 @@ def extract_skills(text: str) -> list[str]:
     """
     pattern = re.compile(
         r"(?ms)^(?:Highlights|Skills)\s*(.*?)\s*(?=^(?:Accomplishments|Experience|Education)\b)",
-        re.MULTILINE
+        re.MULTILINE,
     )
     m = pattern.search(text)
     if not m:
         return []
     return [line.strip() for line in m.group(1).splitlines() if line.strip()]
 
+
 def extract_experience(text: str) -> list[dict[str, str]]:
     # Pertama ambil section Experience
-    sec = re.search(r"(?ms)^Experience\s*(.*?)\s*(?=^Education\b|\Z)", text, re.MULTILINE)
+    sec = re.search(
+        r"(?ms)^Experience\s*(.*?)\s*(?=^Education\b|\Z)", text, re.MULTILINE
+    )
     if not sec:
         return []
     block = sec.group(1)
@@ -46,15 +51,13 @@ def extract_experience(text: str) -> list[dict[str, str]]:
         r"^(?P<company>.+?)\s+"
         r"(?P<start>\w+\s+\d{4})\s+to\s+(?P<end>\w+\s+\d{4})\s+"
         r"(?P<position>.+)$",
-        re.MULTILINE
+        re.MULTILINE,
     )
     return [m.groupdict() for m in entry_pattern.finditer(block)]
 
+
 def extract_education(text: str) -> list[dict[str, str]]:
-    sec = re.search(
-        r"(?ms)^Education\s*(?:\r?\n){2,}(.*?)(?=(?:\r?\n){2,}\S|\Z)",
-        text
-    )
+    sec = re.search(r"(?ms)^Education\s*(?:\r?\n){2,}(.*?)(?=(?:\r?\n){2,}\S|\Z)", text)
     if not sec:
         return []
 
@@ -64,15 +67,15 @@ def extract_education(text: str) -> list[dict[str, str]]:
     # 2) Regex untuk tiap baris entry
     line_pattern = re.compile(
         r"^"
-        r"(?P<degree>[^:]+?)\s*:\s*"              
-        r"[^,]+?\s*,\s*"                          
+        r"(?P<degree>[^:]+?)\s*:\s*"
+        r"[^,]+?\s*,\s*"
         r"(?P<graduation_date>"
-          r"(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4}"
-          r"|\d{4}"
+        r"(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4}"
+        r"|\d{4}"
         r")\s+"
-        r"(?P<institution>.+)"                   
+        r"(?P<institution>.+)"
         r"$",
-        re.MULTILINE
+        re.MULTILINE,
     )
 
     for line in block.splitlines():
@@ -82,15 +85,12 @@ def extract_education(text: str) -> list[dict[str, str]]:
         m = line_pattern.match(line)
         if m:
             d = m.groupdict()
-            d["degree"]          = d["degree"].strip()
+            d["degree"] = d["degree"].strip()
             d["graduation_date"] = d["graduation_date"].strip()
-            d["institution"]     = d["institution"].strip()
+            d["institution"] = d["institution"].strip()
             entries.append(d)
 
     return entries
-
-
-
 
 
 def extract_text_from_pdf(pdf_path: str) -> str:
@@ -156,22 +156,29 @@ def format_sectioned_text(text: str) -> str:
         result += "\n"
     return result.strip()
 
+
 import re
+
 
 def format_resume(text: str) -> str:
     header_keywords = {
-        'summary':    ['summary', 'overview', 'profile'],
-        'skills':     ['skill', 'competenc', 'ability'],
-        'experience': ['experience', 'work experience', 'professional experience', 'employment'],
-        'education':  ['education', 'educational background', 'academic', 'training']
+        "summary": ["summary", "overview", "profile"],
+        "skills": ["skill", "competenc", "ability"],
+        "experience": [
+            "experience",
+            "work experience",
+            "professional experience",
+            "employment",
+        ],
+        "education": ["education", "educational background", "academic", "training"],
     }
 
     # flatten semua keyword untuk deteksi header
     all_keys = [kw for kws in header_keywords.values() for kw in kws]
     # header: baris mana saja yang mengandung salah satu keyword
     header_re = re.compile(
-        r'^(?P<header>.*\b(?:' + '|'.join(all_keys) + r')\b.*)$',
-        re.IGNORECASE | re.MULTILINE
+        r"^(?P<header>.*\b(?:" + "|".join(all_keys) + r")\b.*)$",
+        re.IGNORECASE | re.MULTILINE,
     )
 
     # 1) Split text ke list of (raw_header, body)
@@ -179,9 +186,9 @@ def format_resume(text: str) -> str:
     last_hdr = None
     last_pos = 0
     for m in header_re.finditer(text):
-        hdr = m.group('header').strip()
+        hdr = m.group("header").strip()
         if last_hdr is not None:
-            body = text[last_pos:m.start()].strip()
+            body = text[last_pos : m.start()].strip()
             sections.append((last_hdr, body))
         last_hdr = hdr
         last_pos = m.end()
@@ -194,7 +201,7 @@ def format_resume(text: str) -> str:
     out = []
     for raw_hdr, body in sections:
         out.append(raw_hdr.upper())
-        out.append('')
+        out.append("")
 
         low = raw_hdr.lower()
         # cari jenis section
@@ -204,60 +211,61 @@ def format_resume(text: str) -> str:
                 sect = key
                 break
 
-        if sect == 'experience':
+        if sect == "experience":
             entry_re = re.compile(
-                r'(?P<title>[^\n]+)\n'
-                r'(?P<daterange>[A-Za-z]+ \d{4}\s+to\s+[A-Za-z]+ \d{4})(?:\s+(?P<company_loc>.*?))?\n'
-                r'(?P<details>.*?)(?=(?:[^\n]+\n[A-Za-z]+ \d{4}\s+to\s+[A-Za-z]+ \d{4})|\Z)',
-                re.DOTALL
+                r"(?P<title>[^\n]+)\n"
+                r"(?P<daterange>[A-Za-z]+ \d{4}\s+to\s+[A-Za-z]+ \d{4})(?:\s+(?P<company_loc>.*?))?\n"
+                r"(?P<details>.*?)(?=(?:[^\n]+\n[A-Za-z]+ \d{4}\s+to\s+[A-Za-z]+ \d{4})|\Z)",
+                re.DOTALL,
             )
             for em in entry_re.finditer(body):
-                title       = em.group('title').strip()
-                date_range  = em.group('daterange').strip()
-                comp_loc    = em.group('company_loc') or ''
-                header_line = date_range + ((' ' + comp_loc.strip()) if comp_loc.strip() else '')
+                title = em.group("title").strip()
+                date_range = em.group("daterange").strip()
+                comp_loc = em.group("company_loc") or ""
+                header_line = date_range + (
+                    (" " + comp_loc.strip()) if comp_loc.strip() else ""
+                )
 
                 out.append(title)
                 out.append(header_line)
-                out.append('')
+                out.append("")
 
-                merged = em.group('details').replace('\n', ' ')
-                for sent in re.split(r'\.\s+', merged):
-                    s = sent.strip().rstrip('.')
+                merged = em.group("details").replace("\n", " ")
+                for sent in re.split(r"\.\s+", merged):
+                    s = sent.strip().rstrip(".")
                     if s:
-                        out.append(s + '.')
-                out.append('')
+                        out.append(s + ".")
+                out.append("")
 
-        elif sect == 'summary':
-            for sent in re.split(r'\.\s+', body):
-                s = sent.strip().rstrip('.')
+        elif sect == "summary":
+            for sent in re.split(r"\.\s+", body):
+                s = sent.strip().rstrip(".")
                 if s:
-                    out.append(s + '.')
-            out.append('')
+                    out.append(s + ".")
+            out.append("")
 
-        elif sect == 'skills':
-            for item in re.split(r'[\n,;]+', body):
-                it = item.strip('- ').strip()
+        elif sect == "skills":
+            for item in re.split(r"[\n,;]+", body):
+                it = item.strip("- ").strip()
                 if it:
                     out.append(it)
-            out.append('')
+            out.append("")
 
-        elif sect == 'education':
+        elif sect == "education":
             for line in body.splitlines():
                 it = line.strip()
                 if it:
                     out.append(it)
-            out.append('')
+            out.append("")
 
         else:
             for line in body.splitlines():
                 it = line.strip()
                 if it:
                     out.append(it)
-            out.append('')
+            out.append("")
 
-    return '\n'.join(out).rstrip()
-
+    return "\n".join(out).rstrip()
 
 
 def format_flat_text(text: str) -> str:
@@ -282,8 +290,6 @@ def convert_pdf_to_json(pdf_path: str, json_output_path: str):
     print(f"JSON saved to: {json_output_path}")
 
 
-
-
 def find_pdf_files() -> Iterator[str]:
     """
     A necessary helper to discover all PDF files for the SearchService to iterate over.
@@ -297,103 +303,195 @@ def find_pdf_files() -> Iterator[str]:
             if file.lower().endswith(".pdf"):
                 yield os.path.join(root, file)
 
-def extract_applicant_info(text: str) -> dict[str, object]:
-    SECTION_PATTERN = re.compile(
-        r'^\s*(?P<header>SUMMARY|SKILLS|EXPERIENCE|EDUCATION)\s*$\n+'  
-        r'(?P<body>.*?)(?=\n+^\s*(?:SUMMARY|SKILLS|EXPERIENCE|EDUCATION)\s*$|\Z)',
-        re.IGNORECASE | re.MULTILINE | re.DOTALL
+
+def extract_detailed_info(text):
+
+    name_pattern = re.findall(r"([A-Z][a-z]+(?: [A-Z][a-z]+)+)", text)
+    name = name_pattern[0] if name_pattern else "Unknown"
+
+    summary_pattern = re.findall(
+        r"(Summary|Objective)(.*?)(Certifications|Skills|Experience|$)",
+        text,
+        flags=re.DOTALL,
     )
-    data = {
-        'summary': '',
-        'skills': [],
-        'experience': [],
-        'education': []
+    summary = (
+        summary_pattern[0][1].strip() if summary_pattern else "No summary available"
+    )
+
+    certifications_pattern = re.findall(
+        r"(Certifications|Licenses)(.*?)(Skills|Experience|Education|$)",
+        text,
+        flags=re.DOTALL,
+    )
+    certifications = (
+        certifications_pattern[0][1].strip()
+        if certifications_pattern
+        else "No certifications available"
+    )
+
+    skills_pattern = re.findall(
+        r"(Skills|Highlights)(.*?)(Experience|Education|Projects|$)",
+        text,
+        flags=re.DOTALL,
+    )
+    skills = skills_pattern[0][1].strip() if skills_pattern else "No skills available"
+
+    experience_pattern = re.findall(
+        r"(Experience|Work History)(.*?)(Education|Skills|$)", text, flags=re.DOTALL
+    )
+    experience = (
+        experience_pattern[0][1].strip()
+        if experience_pattern
+        else "No experience listed"
+    )
+
+    education_pattern = re.findall(
+        r"(Education|Academic Background)(.*?)(Skills|Experience|$)",
+        text,
+        flags=re.DOTALL,
+    )
+    education = (
+        education_pattern[0][1].strip() if education_pattern else "No education listed"
+    )
+
+    projects_pattern = re.findall(
+        r"(Projects|Personal Projects)(.*?)(Skills|Experience|$)", text, flags=re.DOTALL
+    )
+    projects = (
+        projects_pattern[0][1].strip() if projects_pattern else "No projects listed"
+    )
+
+    contact_pattern = re.findall(r"(?:Email|Phone|LinkedIn|Contact)(.*?)(?:\n|$)", text)
+    contact_info = contact_pattern if contact_pattern else "No contact info found"
+
+    return {
+        "Full Name": name,
+        "Summary": summary,
+        "Certifications": certifications,
+        "Skills": skills,
+        "Experience": experience,
+        "Education": education,
+        "Projects": projects,
+        "Contact Info": contact_info,
     }
 
+
+def extract_applicant_info(text: str) -> dict[str, object]:
+    SECTION_PATTERN = re.compile(
+        r"^\s*(?P<header>SUMMARY|SKILLS|EXPERIENCE|EDUCATION)\s*$\n+"
+        r"(?P<body>.*?)(?=\n+^\s*(?:SUMMARY|SKILLS|EXPERIENCE|EDUCATION)\s*$|\Z)",
+        re.IGNORECASE | re.MULTILINE | re.DOTALL,
+    )
+    data = {"summary": "", "skills": [], "experience": [], "education": []}
+
     for m in SECTION_PATTERN.finditer(text):
-        header = m.group('header').strip().upper()
-        body   = m.group('body').strip()
+        header = m.group("header").strip().upper()
+        body = m.group("body").strip()
 
-        if header == 'SUMMARY':
-            data['summary'] = body.replace('\n', ' ').strip()
+        if header == "SUMMARY":
+            data["summary"] = body.replace("\n", " ").strip()
 
-        elif header == 'SKILLS':
-            items = re.split(r'[\n,;]+', body)
-            data['skills'] = [s.strip() for s in items if s.strip()]
+        elif header == "SKILLS":
+            items = re.split(r"[\n,;]+", body)
+            data["skills"] = [s.strip() for s in items if s.strip()]
 
-        elif header == 'EXPERIENCE':
+        elif header == "EXPERIENCE":
             lines = body.splitlines()
             i = 0
             while i < len(lines) - 1:
                 pos = lines[i].strip()
-                dr  = lines[i+1].strip()
-                if re.match(r'[A-Za-z]+ \d{4}\s+to\s+[A-Za-z]+ \d{4}', dr):
-                    data['experience'].append({
-                        'position': pos,
-                        'date_range': dr
-                    })
+                dr = lines[i + 1].strip()
+                if re.match(r"[A-Za-z]+ \d{4}\s+to\s+[A-Za-z]+ \d{4}", dr):
+                    data["experience"].append({"position": pos, "date_range": dr})
                     i += 2
                 else:
                     i += 1
 
-        elif header == 'EDUCATION':
+        elif header == "EDUCATION":
             for line in body.splitlines():
                 line = line.strip()
                 if not line:
                     continue
 
-                #graduation date
-                date_m = re.search(r'([A-Za-z]+ \d{4})', line)
+                # graduation date
+                date_m = re.search(r"([A-Za-z]+ \d{4})", line)
                 if not date_m:
                     continue
                 grad_date = date_m.group(1)
 
-                #degree = teks sebelum tanggal
-                degree = line[:date_m.start()].strip(' ,:-')
+                # degree = teks sebelum tanggal
+                degree = line[: date_m.start()].strip(" ,:-")
 
-                #institution = cari kata kunci University/College/Institute/School/Edu
+                # institution = cari kata kunci University/College/Institute/School/Edu
                 inst_m = re.search(
-                    r'\b(?:University|College|Institute|School|Edu)\b.*?(?=(?:,|City|State|\s{2,}|$))',
-                    line[date_m.end():],
-                    re.IGNORECASE
+                    r"\b(?:University|College|Institute|School|Edu)\b.*?(?=(?:,|City|State|\s{2,}|$))",
+                    line[date_m.end() :],
+                    re.IGNORECASE,
                 )
-                institution = inst_m.group(0).strip(' ,') if inst_m else ''
+                institution = inst_m.group(0).strip(" ,") if inst_m else ""
 
-                data['education'].append({
-                    'graduation_date': grad_date,
-                    'institution': institution,
-                    'degree': degree
-                })
+                data["education"].append(
+                    {
+                        "graduation_date": grad_date,
+                        "institution": institution,
+                        "degree": degree,
+                    }
+                )
 
     return data
 
 
+def extract_hybrid_info(text):
+    """
+    Hybrid function that combines the best of both extraction methods.
+    Uses OLD method for Summary and Experience, NEW method for Skills and Education.
+    """
+
+    # Get results from both functions
+    old_info = extract_applicant_info(text)
+    new_info = extract_detailed_info(text)
+
+    # Combine the best parts
+    hybrid_result = {
+        # Use OLD for Summary (better parsing)
+        "Summary": old_info.get("summary", "No summary available"),
+        # Use NEW for Skills (better extraction)
+        "Skills": new_info.get("Skills", "No skills available"),
+        # Use OLD for Experience (better structured parsing)
+        "Experience": old_info.get("experience", []),
+        # Use NEW for Education (better extraction)
+        "Education": old_info.get("education", []),
+        # Use NEW for additional fields
+        "Full Name": new_info.get("Full Name", "Unknown"),
+    }
+
+    return hybrid_result
+
+
 if __name__ == "__main__":
-    pdf_path = "../../data/ACCOUNTANT/10674770.pdf" 
+    pdf_path = "data/10984392.pdf"
     content = extract_text_from_pdf(pdf_path)
-    print("Extracted Text:\n", format_resume(content))
 
     teks = format_resume(content)
-    print("\n--- Informasi Pelamar ---\n")
 
-    info = extract_applicant_info(teks)
+    print("\n--- Testing HYBRID extract_hybrid_info ---\n")
 
-    print("Ringkasan:")
-    print(info['summary'], "\n")
+    # Test the hybrid function
+    hybrid_info = extract_hybrid_info(teks)
 
-    print("Keahlian:")
-    for s in info['skills']:
-        print(f"- {s}")
-    print()
+    print("Full Name:")
+    print(hybrid_info["Full Name"], "\n")
 
-    print("Pengalaman Kerja:")
-    for e in info['experience']:
+    print("Summary (from OLD method):")
+    print(hybrid_info["Summary"], "\n")
+
+    print("Skills (from NEW method):")
+    print(hybrid_info["Skills"], "\n")
+
+    print("Experience (from OLD method):")
+    for e in hybrid_info["Experience"]:
         print(f"- {e['date_range']}: {e['position']}")
     print()
 
-    print("Pendidikan:")
-    for ed in info['education']:
-        print(f"- {ed['graduation_date']}: {ed['degree']} at {ed['institution']}")
-
-    
-
+    print("Education (from OLD method):")
+    print(hybrid_info["Education"], "\n")
