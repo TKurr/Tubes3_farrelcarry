@@ -202,7 +202,11 @@ def build_main_view(
     )
     algo_dropdown = ft.Dropdown(
         label="Algorithm",
-        options=[ft.dropdown.Option("KMP"), ft.dropdown.Option("BM"), ft.dropdown.Option("AC")],
+        options=[
+            ft.dropdown.Option("KMP"),
+            ft.dropdown.Option("BM"),
+            ft.dropdown.Option("AC"),
+        ],
         value="KMP",
         border_radius=8,
         width=120,
@@ -220,11 +224,11 @@ def build_main_view(
         """Handle View CV button click - open PDF via backend"""
         pdf_url = f"http://127.0.0.1:5000/view_cv/{detail_id}"
         print(f"[UI] Opening CV: {pdf_url}")
-        
+
         # For WSL - use Windows browser
         import subprocess
         import os
-        
+
         if "microsoft" in os.uname().release.lower():  # Detect WSL
             try:
                 # Use Windows browser from WSL
@@ -253,15 +257,18 @@ def build_main_view(
                 )
                 - 15
             )
-
+            i = 0
             for i, result in enumerate(response_data["search_results"]):
                 detail_id = result.get("detail_id")
                 matched_keywords = result.get("matched_keywords", {})
                 keywords_column = ft.Column(spacing=2)
                 if matched_keywords:
-                    for i, (key, value) in enumerate(matched_keywords.items()):
+                    # Using a different variable for inner loop index to avoid confusion
+                    for kw_idx, (key, value) in enumerate(matched_keywords.items()):
                         keywords_column.controls.append(
-                            ft.Text(f"{i+1}. {key} ({value} matches)")
+                            ft.Text(
+                                f"{kw_idx+1}. {key} ({value})"
+                            )  # Assuming 'value' is the count
                         )
                 else:
                     keywords_column.controls.append(ft.Text("None"))
@@ -271,7 +278,7 @@ def build_main_view(
                         ft.Column(
                             [
                                 ft.Text(
-                                    f"{i + 1}. {result.get('applicant_name', 'N/A')}",
+                                    f"{i + 1}. {result.get('applicant_name', 'N/A')}",  # This line is now correct
                                     style=ft.TextThemeStyle.TITLE_MEDIUM,
                                     weight=ft.FontWeight.BOLD,
                                 ),
@@ -333,6 +340,7 @@ def build_main_view(
                         width=card_width,
                     )
                 )
+                i = i + 1
                 results_view.controls.append(card)
         else:
             results_view.controls.append(
@@ -368,9 +376,9 @@ def build_main_view(
             return
 
         # Parse keywords - detect if multiple keywords are provided
-        keywords_list = [k.strip().lower() for k in kw.split(',') if k.strip()]
+        keywords_list = [k.strip().lower() for k in kw.split(",") if k.strip()]
         use_multiple_search = len(keywords_list) > 1
-        
+
         search_button.disabled = True
         results_view.controls.clear()
         results_view.controls.append(
@@ -389,12 +397,14 @@ def build_main_view(
 
         # Use multiple pattern search if multiple keywords are provided
         if use_multiple_search:
-            response = api_client.search_multiple_patterns(keywords_list, algo, top_n)  # Pass algorithm
+            response = api_client.search_multiple_patterns(
+                keywords_list, algo, top_n
+            )  # Pass algorithm
             search_type = "multiple"
         else:
             response = api_client.search(kw, algo, top_n)
             search_type = "single"
-        
+
         search_state["search_type"] = search_type
         search_state["last_response"] = response
         _populate_results(response)
